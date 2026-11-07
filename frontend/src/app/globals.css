@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --background: #09090b;
+  --surface: #18181b;
+  --foreground: #fafafa;
+  --muted: #a1a1aa;
+  --accent: #8b83f6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--background);
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse at 68% -12%, rgb(139 131 246 / 5%), transparent 40%),
+    var(--background);
+  color: var(--foreground);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgb(139 131 246 / 30%);
+}
+
+@layer components {
+  .panel {
+    @apply rounded-2xl border border-white/[0.065] bg-zinc-900/70;
+  }
+
+  .eyebrow {
+    @apply text-[10px] font-semibold tracking-[0.17em] text-zinc-500;
+  }
+
+  .subtle-link {
+    @apply text-xs font-medium text-violet-300 transition-colors hover:text-violet-200;
+  }
+}

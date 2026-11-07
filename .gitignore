@@ -1,0 +1,26 @@
+.env
+.env.*
+!.env.example
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+backend/.coverage
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+coverage/
+npm-debug.log*
+
+# Local data
+postgres_data/
