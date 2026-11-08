@@ -106,9 +106,19 @@ def normalize_search_result(category: str, item: dict[str, Any]) -> dict[str, An
 def normalize_details(category: str, item: dict[str, Any]) -> dict[str, Any]:
     normalized = normalize_search_result(category, item)
     episode_run_times = item.get("episode_run_time") or []
+    genres = item.get("genres")
     normalized.update(
         {
             "status": item.get("status"),
+            "genres": [
+                genre["name"].strip()
+                for genre in genres
+                if isinstance(genre, dict)
+                and isinstance(genre.get("name"), str)
+                and genre["name"].strip()
+            ]
+            if isinstance(genres, list)
+            else [],
             "runtime": item.get("runtime")
             if category == "movie"
             else (episode_run_times[0] if episode_run_times else None),

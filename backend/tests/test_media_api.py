@@ -69,6 +69,7 @@ class FakeTmdbClient:
             "tmdb_rating": 7.8,
             "tmdb_vote_count": 1510,
             "status": "Released",
+            "genres": ["Drama"],
         }
 
     def get_imdb_id(self, media_type: str, external_id: int) -> None:
@@ -139,6 +140,7 @@ def test_search_import_duplicate_status_and_removal(api_client) -> None:
     assert first_import.json()["watch_status"] == "PLAN_TO_WATCH"
     assert first_import.json()["media"]["release_date"] == "2024-02-03"
     assert first_import.json()["media"]["tmdb_rating"] == 7.8
+    assert first_import.json()["media"]["genres"] == ["Drama"]
     assert repeated_import.status_code == 200
     assert repeated_import.json()["already_in_library"] is True
     assert tmdb.details_calls == 2
@@ -643,6 +645,10 @@ def test_library_feedback_can_be_saved_and_cleared(api_client) -> None:
     assert updated.json()["personal_rating"] == 8.5
     assert updated.json()["personal_review"] == "A favorite."
     assert updated.json()["personal_notes"] == "Watch again with friends."
+    library_entry = client.get("/api/v1/library").json()[0]
+    assert library_entry["personal_rating"] == 8.5
+    assert library_entry["personal_review"] == "A favorite."
+    assert library_entry["personal_notes"] == "Watch again with friends."
     assert client.get(f"/api/v1/library/{media_id}").json()["personal_rating"] == 8.5
 
     invalid = client.patch(

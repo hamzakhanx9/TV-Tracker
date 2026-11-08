@@ -1,5 +1,8 @@
 import { notFound } from "next/navigation";
 import { CalendarView } from "@/components/calendar-view";
+import { InsightsPanel } from "@/components/insights-panel";
+import { SettingsPanel } from "@/components/settings-panel";
+import { StatisticsPanel } from "@/components/statistics-panel";
 
 const sections: Record<string, { title: string; description: string }> = {
   discover: {
@@ -22,17 +25,9 @@ const sections: Record<string, { title: string; description: string }> = {
     title: "Watchlist",
     description: "Save the titles you want to get to next.",
   },
-  recommendations: {
-    title: "For you",
-    description: "Thoughtful picks shaped by your taste and viewing history.",
-  },
-  statistics: {
-    title: "Your stats",
-    description: "A closer look at your viewing habits, milestones, and favorites.",
-  },
-  settings: {
-    title: "Settings",
-    description: "Personalize FRAME and manage your account preferences.",
+  insights: {
+    title: "Your insights",
+    description: "Personalized discoveries and patterns from your viewing history.",
   },
 };
 
@@ -42,6 +37,9 @@ export default async function SectionPage({
   params: Promise<{ section: string }>;
 }) {
   const { section } = await params;
+  if (section === "settings") return <SettingsPanel />;
+  if (section === "statistics") return <StatisticsPanel />;
+  if (section === "insights") return <InsightsPanel />;
   const content = sections[section];
   if (!content) notFound();
   if (section === "calendar") return <CalendarView />;

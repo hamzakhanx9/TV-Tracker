@@ -31,6 +31,84 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+html[data-theme="light"] {
+  color-scheme: light;
+  --background: #f4f4f5;
+  --surface: #ffffff;
+  --foreground: #18181b;
+  --muted: #52525b;
+}
+
+html[data-theme="light"] body {
+  background:
+    radial-gradient(ellipse at 68% -12%, rgb(139 131 246 / 9%), transparent 40%),
+    var(--background);
+  color: var(--foreground);
+}
+
+html[data-theme="light"] .panel {
+  border-color: #e4e4e7;
+  background-color: rgb(255 255 255 / 90%);
+}
+
+html[data-theme="light"] aside {
+  border-color: #e4e4e7;
+  background-color: #ffffff;
+}
+
+html[data-theme="light"] .sticky {
+  border-color: #e4e4e7;
+  background-color: rgb(255 255 255 / 88%);
+}
+
+html[data-theme="light"] [class*="border-white/"] {
+  border-color: #e4e4e7 !important;
+}
+
+html[data-theme="light"] [class*="bg-white/"],
+html[data-theme="light"] [class~="bg-black/10"],
+html[data-theme="light"] [class~="bg-black/20"],
+html[data-theme="light"] [class~="bg-[#111114]"],
+html[data-theme="light"] [class~="bg-[#17171b]"],
+html[data-theme="light"] .bg-zinc-900,
+html[data-theme="light"] .bg-zinc-800 {
+  background-color: #f4f4f5 !important;
+}
+
+html[data-theme="light"] .text-white,
+html[data-theme="light"] .text-zinc-100,
+html[data-theme="light"] .text-zinc-200,
+html[data-theme="light"] .text-zinc-300 {
+  color: #27272a !important;
+}
+
+html[data-theme="light"] .text-zinc-400,
+html[data-theme="light"] .text-zinc-500 {
+  color: #52525b !important;
+}
+
+html[data-theme="light"] .text-zinc-600 {
+  color: #71717a !important;
+}
+
+html[data-theme="light"] [class*="text-violet-"] {
+  color: #6d28d9 !important;
+}
+
+html[data-theme="light"] [class*="text-red-"] {
+  color: #b91c1c !important;
+}
+
+html[data-theme="light"] [class*="text-emerald-"] {
+  color: #047857 !important;
+}
+
+html[data-theme="light"] .subtle-link:hover,
+html[data-theme="light"] [class*="hover:text-zinc-"]:hover,
+html[data-theme="light"] [class*="hover:text-white"]:hover {
+  color: #6d28d9 !important;
+}
+
 ::selection {
   background: rgb(139 131 246 / 30%);
 }

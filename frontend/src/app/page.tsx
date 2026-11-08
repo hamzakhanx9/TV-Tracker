@@ -63,24 +63,14 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <section className="grid gap-3 lg:grid-cols-2">
+      <section>
         <EmptyPanel
           eyebrow="ON THE HORIZON"
           title="Upcoming releases"
           description="New episodes and film releases will appear here once your library is connected."
           icon={<Tv2 size={18} strokeWidth={1.6} />}
         />
-        <EmptyPanel
-          eyebrow="CURATED FOR YOU"
-          title="A few good picks"
-          description="Recommendations will take shape from the genres and titles you enjoy."
-          icon={<Film size={18} strokeWidth={1.6} />}
-        />
       </section>
-
-      <footer className="pb-2 text-xs text-zinc-600">
-        FRAME is just getting started. Your dashboard will fill in as you build your library.
-      </footer>
     </div>
   );
 }

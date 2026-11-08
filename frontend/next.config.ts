@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   poweredByHeader: false,
   async rewrites() {
     const apiUrl = process.env.FRONTEND_API_URL ?? "http://localhost:8000";

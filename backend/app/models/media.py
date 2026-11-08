@@ -2,6 +2,7 @@ from datetime import date, datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     CheckConstraint,
     Date,
@@ -44,6 +45,7 @@ class Media(Base):
     tmdb_vote_count: Mapped[int | None] = mapped_column(Integer)
     imdb_rating: Mapped[float | None] = mapped_column(Float)
     rotten_tomatoes_rating: Mapped[int | None] = mapped_column(Integer)
+    genres: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     status: Mapped[str | None] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

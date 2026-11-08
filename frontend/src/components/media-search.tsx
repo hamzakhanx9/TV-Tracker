@@ -301,18 +301,6 @@ export function MediaSearch() {
           </p>
         </div>
       )}
-      <p className="text-center text-[10px] leading-5 text-zinc-600">
-        Search results and images provided by{" "}
-        <a
-          className="text-zinc-400 underline decoration-zinc-700 underline-offset-2 hover:text-zinc-300"
-          href="https://www.themoviedb.org/"
-          rel="noreferrer"
-          target="_blank"
-        >
-          TMDB
-        </a>
-        . This product uses the TMDB API but is not endorsed or certified by TMDB.
-      </p>
     </div>
   );
 }

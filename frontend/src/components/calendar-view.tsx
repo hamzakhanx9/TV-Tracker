@@ -230,8 +230,8 @@ export function CalendarView() {
         </div>
       </div>
 
-      <section aria-live="polite" className="panel min-h-28 p-5">
-        {selectedEvent ? (
+      {selectedEvent && (
+        <section aria-live="polite" className="panel min-h-28 p-5">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <div>
               <p className="eyebrow">
@@ -268,16 +268,8 @@ export function CalendarView() {
               {selectedEvent.watched && <span className="ml-1 text-emerald-300">Watched</span>}
             </div>
           </div>
-        ) : (
-          <div className="flex min-h-[56px] items-center justify-center text-sm text-zinc-500">
-            {loading
-              ? "Loading releases…"
-              : error
-                ? "Calendar events could not be loaded."
-                : "Select a release or episode to see its details."}
-          </div>
-        )}
-      </section>
+        </section>
+      )}
 
       <p className="text-xs text-zinc-600">Episode times are shown in {timezone || "your local timezone"}.</p>
     </section>

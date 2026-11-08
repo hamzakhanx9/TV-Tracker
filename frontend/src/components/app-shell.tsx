@@ -3,6 +3,7 @@
 import {
   Activity,
   Bell,
+  BarChart3,
   CalendarDays,
   Clapperboard,
   Film,
@@ -10,7 +11,7 @@ import {
   Menu,
   Search,
   Settings2,
-  Sparkles,
+  Lightbulb,
   Tv2,
   X,
   type LucideIcon,
@@ -20,6 +21,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { applyTheme, getStoredTheme } from "@/lib/theme";
 
 const primaryNavigation = [
   { label: "Home", href: "/", icon: LayoutDashboard },
@@ -33,8 +35,8 @@ const personalNavigation = [
   { label: "Watchlist", href: "/watchlist", icon: Clapperboard },
   { label: "Catch up", href: "/catch-up", icon: Activity },
   { label: "Notifications", href: "/notifications", icon: Bell },
-  { label: "For you", href: "/recommendations", icon: Sparkles },
-  { label: "Your stats", href: "/statistics", icon: Activity },
+  { label: "Your stats", href: "/statistics", icon: BarChart3 },
+  { label: "Your insights", href: "/insights", icon: Lightbulb },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -42,6 +44,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [hasNotifications, setHasNotifications] = useState(false);
   const [notificationError, setNotificationError] = useState("");
+
+  useEffect(() => {
+    applyTheme(getStoredTheme());
+  }, []);
 
   const refreshNotificationStatus = useCallback(async () => {
     try {
@@ -127,12 +133,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <div className="mt-auto">
-          <div className="mx-1 mb-4 rounded-xl border border-white/[0.06] bg-white/[0.025] p-3.5">
-            <p className="text-xs font-medium text-zinc-300">A quieter kind of queue</p>
-            <p className="mt-1.5 text-[11px] leading-5 text-zinc-500">
-              One home for every story on your list.
-            </p>
-          </div>
           <NavItem
             label="Settings"
             href="/settings"
@@ -164,18 +164,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               <Menu size={18} />
             </button>
-            <div className="hidden text-xs text-zinc-500 sm:block">
-              A little more in tune with what you watch.
-            </div>
             <Link
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/[0.07] bg-white/[0.025] px-3 text-xs text-zinc-400 transition-colors hover:border-white/[0.12] hover:text-zinc-200"
+              aria-label="Find something to watch"
+              className="ml-auto grid size-9 place-items-center rounded-lg border border-white/[0.07] bg-white/[0.025] text-zinc-400 transition-colors hover:border-white/[0.12] hover:text-zinc-200"
               href="/discover"
+              title="Find something to watch"
             >
               <Search size={14} />
-              <span>Find something to watch</span>
-              <span className="ml-3 hidden rounded border border-white/[0.08] px-1.5 py-0.5 text-[10px] text-zinc-600 md:inline">
-                ⌘ K
-              </span>
             </Link>
           </div>
         </header>

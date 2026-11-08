@@ -3,7 +3,6 @@
 import { AlertCircle, Bell, LoaderCircle, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import type { FormEvent } from "react";
 
 type Notification = {
   id: string;
@@ -16,37 +15,25 @@ type Notification = {
   created_at: string;
 };
 
-type Preferences = {
-  release_notifications_enabled: boolean;
-  timezone: string;
-};
-
 export function NotificationsPanel() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [preferences, setPreferences] = useState<Preferences | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setError("");
     try {
-      const [notificationsResponse, preferencesResponse] = await Promise.all([
-        fetch("/api/v1/notifications?limit=100", { cache: "no-store", signal }),
-        fetch("/api/v1/notification-preferences", { cache: "no-store", signal }),
-      ]);
-      const [notificationBody, preferencesBody] = await Promise.all([
-        notificationsResponse.json().catch(() => null),
-        preferencesResponse.json().catch(() => null),
-      ]);
-      if (!notificationsResponse.ok || !preferencesResponse.ok) {
-        const detail = notificationBody?.detail ?? preferencesBody?.detail;
+      const response = await fetch("/api/v1/notifications?limit=100", {
+        cache: "no-store",
+        signal,
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        const detail = body?.detail;
         throw new Error(typeof detail === "string" ? detail : "Could not load notifications.");
       }
-      setNotifications(notificationBody as Notification[]);
+      setNotifications(body as Notification[]);
       window.dispatchEvent(new Event("frame-notifications-updated"));
-      setPreferences(preferencesBody as Preferences);
     } catch (loadError) {
       if (loadError instanceof Error && loadError.name === "AbortError") return;
       setError(loadError instanceof Error ? loadError.message : "Could not load notifications.");
@@ -90,33 +77,6 @@ export function NotificationsPanel() {
     }
   }
 
-  async function savePreferences(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!preferences) return;
-    setSaving(true);
-    setSaved(false);
-    setError("");
-    try {
-      const response = await fetch("/api/v1/notification-preferences", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(preferences),
-      });
-      const body = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(
-          typeof body?.detail === "string" ? body.detail : "Could not save notification preferences.",
-        );
-      }
-      setPreferences(body as Preferences);
-      setSaved(true);
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Could not save preferences.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
     <section className="space-y-5">
       <header>
@@ -134,51 +94,6 @@ export function NotificationsPanel() {
           {error}
         </p>
       )}
-
-      <form className="panel space-y-4 p-5" onSubmit={savePreferences}>
-        <h2 className="text-sm font-medium text-white">Notification preferences</h2>
-        {preferences ? (
-          <>
-            <label className="flex items-center gap-3 text-sm text-zinc-300">
-              <input
-                checked={preferences.release_notifications_enabled}
-                onChange={(event) =>
-                  setPreferences({
-                    ...preferences,
-                    release_notifications_enabled: event.target.checked,
-                  })
-                }
-                type="checkbox"
-              />
-              New episode announcements and releases for shows you’re watching
-            </label>
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="text-xs text-zinc-500" htmlFor="notification-timezone">
-                Timezone
-              </label>
-              <input
-                className="h-9 rounded-lg border border-white/[0.08] bg-black/20 px-3 text-sm text-zinc-200"
-                id="notification-timezone"
-                maxLength={100}
-                onChange={(event) =>
-                  setPreferences({ ...preferences, timezone: event.target.value })
-                }
-                value={preferences.timezone}
-              />
-              <button
-                className="rounded-lg bg-violet-400/15 px-3 py-2 text-xs font-medium text-violet-100 hover:bg-violet-400/20 disabled:opacity-50"
-                disabled={saving}
-                type="submit"
-              >
-                {saving ? "Saving…" : "Save preferences"}
-              </button>
-              {saved && <span className="text-xs text-emerald-300">Saved</span>}
-            </div>
-          </>
-        ) : (
-          <p className="text-sm text-zinc-500">Preferences are unavailable.</p>
-        )}
-      </form>
 
       <div className="space-y-3">
         {!loading && notifications.length > 0 && (

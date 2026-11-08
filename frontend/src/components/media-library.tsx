@@ -36,6 +36,7 @@ type LibraryItem = {
     tmdb_vote_count: number | null;
     imdb_rating: number | null;
     rotten_tomatoes_rating: number | null;
+    genres: string[];
   };
   watch_status: WatchStatus;
   added_at: string;
@@ -98,6 +99,7 @@ export function MediaLibrary({
   const [error, setError] = useState("");
   const [updating, setUpdating] = useState<string | null>(null);
   const [filter, setFilter] = useState<WatchStatus | "ALL">(initialFilter);
+  const [genreFilter, setGenreFilter] = useState("ALL");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [tvDialogId, setTvDialogId] = useState<string | null>(null);
   const tvDialogRef = useRef<HTMLDialogElement>(null);
@@ -109,6 +111,7 @@ export function MediaLibrary({
   const [trackingUpdating, setTrackingUpdating] = useState<string | null>(null);
   const [trackingError, setTrackingError] = useState<string | null>(null);
   const [revealedEpisodes, setRevealedEpisodes] = useState<Set<string>>(new Set());
+  const [expandedSeasons, setExpandedSeasons] = useState<Set<string>>(new Set());
   const isMovie = mediaType === "MOVIE";
 
   const loadLibrary = useCallback(async () => {
@@ -408,7 +411,14 @@ export function MediaLibrary({
     }
   }
 
-  const visibleItems = items.filter((item) => filter === "ALL" || item.watch_status === filter);
+  const genres = [...new Set(items.flatMap((item) => item.media.genres))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const visibleItems = items.filter(
+    (item) =>
+      (filter === "ALL" || item.watch_status === filter) &&
+      (genreFilter === "ALL" || item.media.genres.includes(genreFilter)),
+  );
   const selectedTvItem = items.find((item) => item.media.id === tvDialogId) ?? null;
   const collectionTitle =
     title ?? (mediaType === "ALL" ? "Watchlist" : isMovie ? "Movies" : "TV shows");
@@ -426,23 +436,40 @@ export function MediaLibrary({
             {title ? "to watch" : "in your library"}
           </p>
         </div>
-        {showStatusFilter && (
+        <div className="flex flex-wrap gap-3">
+          {showStatusFilter && (
+            <label className="flex items-center gap-3 text-xs text-zinc-500">
+              Status
+              <select
+                className="h-10 rounded-lg border border-white/[0.07] bg-[#111114] px-3 text-xs text-zinc-300 outline-none focus:border-violet-400/40"
+                onChange={(event) => setFilter(event.target.value as WatchStatus | "ALL")}
+                value={filter}
+              >
+                <option value="ALL">All statuses</option>
+                {statuses.map((status) => (
+                  <option key={status.value} value={status.value}>
+                    {status.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="flex items-center gap-3 text-xs text-zinc-500">
-            Status
+            Genre
             <select
               className="h-10 rounded-lg border border-white/[0.07] bg-[#111114] px-3 text-xs text-zinc-300 outline-none focus:border-violet-400/40"
-              onChange={(event) => setFilter(event.target.value as WatchStatus | "ALL")}
-              value={filter}
+              onChange={(event) => setGenreFilter(event.target.value)}
+              value={genreFilter}
             >
-              <option value="ALL">All statuses</option>
-              {statuses.map((status) => (
-                <option key={status.value} value={status.value}>
-                  {status.label}
+              <option value="ALL">All genres</option>
+              {genres.map((genre) => (
+                <option key={genre} value={genre}>
+                  {genre}
                 </option>
               ))}
             </select>
           </label>
-        )}
+        </div>
       </div>
 
       {error && (
@@ -748,117 +775,174 @@ export function MediaLibrary({
                           className="rounded-lg border border-white/[0.06] bg-[#17171b] p-3 sm:p-4"
                           key={season.id}
                         >
-                          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                            <div>
-                              <h4 className="text-xs font-medium text-zinc-200">
-                                {season.name}
-                              </h4>
-                              <p className="mt-0.5 text-[10px] text-zinc-500">
-                                {season.watched_count} / {season.episode_count} watched
-                              </p>
-                            </div>
+                          <div className="flex items-center gap-3">
                             <button
-                              className="rounded-md px-2 py-1 text-[10px] text-violet-300 hover:bg-violet-400/10 disabled:opacity-50"
-                              disabled={trackingUpdating === season.id}
+                              aria-label={`${expandedSeasons.has(season.id) ? "Collapse" : "Expand"} ${season.name}`}
+                              aria-controls={`episodes-${season.id}`}
+                              aria-expanded={expandedSeasons.has(season.id)}
+                              className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left"
+                              onClick={() =>
+                                setExpandedSeasons((current) => {
+                                  const next = new Set(current);
+                                  if (next.has(season.id)) next.delete(season.id);
+                                  else next.add(season.id);
+                                  return next;
+                                })
+                              }
+                              type="button"
+                            >
+                              <ChevronDown
+                                className={`shrink-0 text-zinc-500 transition-transform ${
+                                  expandedSeasons.has(season.id) ? "rotate-180" : ""
+                                }`}
+                                size={15}
+                              />
+                              <span className="min-w-0">
+                                <span className="block text-xs font-medium text-zinc-200">
+                                  {season.name}
+                                </span>
+                                <span className="mt-0.5 block text-[10px] text-zinc-500">
+                                  {season.watched_count} / {season.episode_count} watched
+                                </span>
+                              </span>
+                            </button>
+                            <button
+                              aria-checked={
+                                season.watched_count === 0
+                                  ? false
+                                  : season.watched_count === season.episode_count
+                                    ? true
+                                    : "mixed"
+                              }
+                              aria-label={`Mark all episodes in ${season.name} watched`}
+                              className={`grid size-5 shrink-0 place-items-center rounded border transition-colors ${
+                                season.watched_count === 0
+                                  ? "border-white/10 hover:border-violet-300/50"
+                                  : "border-violet-400/60 bg-violet-400/90"
+                              } disabled:opacity-50`}
+                              disabled={
+                                trackingUpdating === season.id || season.episode_count === 0
+                              }
                               onClick={() =>
                                 void setSeasonWatched(
                                   selectedTvItem,
                                   season,
-                                  season.watched_count === 0,
+                                  season.watched_count !== season.episode_count,
                                 )
                               }
+                              role="checkbox"
                               type="button"
+                              title={
+                                season.watched_count === season.episode_count
+                                  ? "Mark season unwatched"
+                                  : "Mark aired episodes watched"
+                              }
                             >
-                              {season.watched_count > 0
-                                ? "Mark season unwatched"
-                                : "Mark aired episodes watched"}
+                              {season.watched_count > 0 && (
+                                <span
+                                  className={`rounded-full bg-white ${
+                                    season.watched_count === season.episode_count
+                                      ? "size-1.5"
+                                      : "h-0.5 w-2"
+                                  }`}
+                                />
+                              )}
                             </button>
                           </div>
-                          <ul className="divide-y divide-white/[0.05]">
-                            {season.episodes.map((episode) => {
-                              const revealed = revealedEpisodes.has(episode.id);
-                              return (
-                                <li className="py-2 first:pt-1" key={episode.id}>
-                                  <div className="flex items-start gap-2">
-                                    <button
-                                      aria-label={
-                                        episode.watched
-                                          ? `Mark ${episode.title} unwatched`
-                                          : `Mark ${episode.title} watched`
-                                      }
-                                      className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded border ${
-                                        episode.watched
-                                          ? "border-violet-400/50 bg-violet-400/15 text-violet-200"
-                                          : "border-white/10 text-transparent hover:border-violet-300/50"
-                                      } disabled:opacity-50`}
-                                      disabled={trackingUpdating === episode.id}
-                                      onClick={() =>
-                                        void setEpisodeWatched(
-                                          selectedTvItem,
-                                          episode.id,
-                                          !episode.watched,
-                                        )
-                                      }
-                                      type="button"
-                                    >
-                                      <Check size={12} />
-                                    </button>
-                                    <div className="min-w-0 flex-1">
-                                      <p className="text-xs text-zinc-300">
-                                        {episode.episode_number === null
-                                          ? episode.title
-                                          : `${season.season_number === 0 ? "Special" : `E${episode.episode_number}`} · ${episode.title}`}
-                                      </p>
-                                      {episode.overview && (
-                                        <div className="mt-1">
+                          {expandedSeasons.has(season.id) && (
+                            <ul
+                              className="mt-2 divide-y divide-white/[0.05]"
+                              id={`episodes-${season.id}`}
+                            >
+                              {season.episodes.map((episode) => {
+                                const revealed = revealedEpisodes.has(episode.id);
+                                return (
+                                  <li className="py-2 first:pt-1" key={episode.id}>
+                                    <div className="flex items-start gap-2">
+                                      <button
+                                        aria-checked={episode.watched}
+                                        aria-label={
+                                          episode.watched
+                                            ? `Mark ${episode.title} unwatched`
+                                            : `Mark ${episode.title} watched`
+                                        }
+                                        className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded border transition-colors ${
+                                          episode.watched
+                                            ? "border-violet-400/60 bg-violet-400/90"
+                                            : "border-white/10 hover:border-violet-300/50"
+                                        } disabled:opacity-50`}
+                                        disabled={trackingUpdating === episode.id}
+                                        onClick={() =>
+                                          void setEpisodeWatched(
+                                            selectedTvItem,
+                                            episode.id,
+                                            !episode.watched,
+                                          )
+                                        }
+                                        role="checkbox"
+                                        type="button"
+                                      >
+                                        {episode.watched && (
+                                          <span className="size-1.5 rounded-full bg-white" />
+                                        )}
+                                      </button>
+                                      <div className="min-w-0 flex-1">
+                                        <p className="text-xs text-zinc-300">
+                                          {episode.episode_number === null
+                                            ? episode.title
+                                            : `${season.season_number === 0 ? "Special" : `E${episode.episode_number}`} · ${episode.title}`}
+                                        </p>
+                                        {episode.overview && (
+                                          <div className="mt-1">
+                                            <button
+                                              className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300"
+                                              onClick={() =>
+                                                setRevealedEpisodes((current) => {
+                                                  const next = new Set(current);
+                                                  if (revealed) next.delete(episode.id);
+                                                  else next.add(episode.id);
+                                                  return next;
+                                                })
+                                              }
+                                              type="button"
+                                            >
+                                              {revealed ? (
+                                                <EyeOff size={11} />
+                                              ) : (
+                                                <Eye size={11} />
+                                              )}
+                                              {revealed ? "Hide description" : "Reveal description"}
+                                            </button>
+                                            {revealed && (
+                                              <p className="mt-1 text-[11px] leading-5 text-zinc-500">
+                                                {episode.overview}
+                                              </p>
+                                            )}
+                                          </div>
+                                        )}
+                                        {episode.watched && (
                                           <button
-                                            className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300"
+                                            className="mt-1 flex items-center gap-1 text-[10px] text-violet-300 hover:text-violet-200 disabled:opacity-50"
+                                            disabled={trackingUpdating === episode.id}
                                             onClick={() =>
-                                              setRevealedEpisodes((current) => {
-                                                const next = new Set(current);
-                                                if (revealed) next.delete(episode.id);
-                                                else next.add(episode.id);
-                                                return next;
-                                              })
+                                              void logRewatch(selectedTvItem, episode.id)
                                             }
                                             type="button"
                                           >
-                                            {revealed ? (
-                                              <EyeOff size={11} />
-                                            ) : (
-                                              <Eye size={11} />
-                                            )}
-                                            {revealed ? "Hide description" : "Reveal description"}
+                                            <RotateCcw size={10} />
+                                            Log rewatch
                                           </button>
-                                          {revealed && (
-                                            <p className="mt-1 text-[11px] leading-5 text-zinc-500">
-                                              {episode.overview}
-                                            </p>
-                                          )}
-                                        </div>
-                                      )}
-                                      {episode.watched && (
-                                        <button
-                                          className="mt-1 flex items-center gap-1 text-[10px] text-violet-300 hover:text-violet-200 disabled:opacity-50"
-                                          disabled={trackingUpdating === episode.id}
-                                          onClick={() =>
-                                            void logRewatch(selectedTvItem, episode.id)
-                                          }
-                                          type="button"
-                                        >
-                                          <RotateCcw size={10} />
-                                          Log rewatch
-                                        </button>
-                                      )}
+                                        )}
+                                      </div>
+                                      <span className="shrink-0 text-[10px] text-zinc-600">
+                                        {episode.air_date ?? "Date unknown"}
+                                      </span>
                                     </div>
-                                    <span className="shrink-0 text-[10px] text-zinc-600">
-                                      {episode.air_date ?? "Date unknown"}
-                                    </span>
-                                  </div>
-                                </li>
-                              );
-                            })}
-                          </ul>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
                         </div>
                       ))}
                     </div>

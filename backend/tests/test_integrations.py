@@ -206,12 +206,17 @@ def test_normalized_dates_are_safe_for_import_and_tvmaze_matching() -> None:
             "name": "A Show",
             "first_air_date": "2020-05-04",
             "episode_run_time": [],
+            "genres": [
+                {"id": 18, "name": "Drama"},
+                {"id": 10765, "name": "Sci-Fi & Fantasy"},
+            ],
         },
     )
 
     assert details["first_air_date"] == date(2020, 5, 4)
     assert parse_release_date(details["first_air_date"]) == date(2020, 5, 4)
     assert details["runtime"] is None
+    assert details["genres"] == ["Drama", "Sci-Fi & Fantasy"]
 
 
 def test_tmdb_normalizes_vote_average_only_within_valid_range() -> None:

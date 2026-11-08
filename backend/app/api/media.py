@@ -230,6 +230,9 @@ def list_library(
                 if entry.media_id in watched_by_media
                 else None
             ),
+            personal_rating=entry.personal_rating,
+            personal_review=entry.personal_review,
+            personal_notes=entry.personal_notes,
         )
         for entry in entries
     ]
@@ -723,6 +726,9 @@ def _library_entry_response(db: Session, entry: UserLibrary) -> LibraryEntryResp
         added_at=entry.added_at,
         watched=watched,
         watched_at=event.watched_at if watched and event else None,
+        personal_rating=entry.personal_rating,
+        personal_review=entry.personal_review,
+        personal_notes=entry.personal_notes,
     )
 
 
@@ -730,12 +736,7 @@ def _library_title_detail_response(
     db: Session, entry: UserLibrary
 ) -> LibraryTitleDetailResponse:
     library_response = _library_entry_response(db, entry)
-    return LibraryTitleDetailResponse(
-        **library_response.model_dump(),
-        personal_rating=entry.personal_rating,
-        personal_review=entry.personal_review,
-        personal_notes=entry.personal_notes,
-    )
+    return LibraryTitleDetailResponse(**library_response.model_dump())
 
 
 def _media_tracking_response(db: Session, entry: UserLibrary) -> MediaTrackingResponse:
@@ -1048,6 +1049,7 @@ def _update_metadata(media: Media, details: dict) -> None:
         "popularity": details.get("popularity"),
         "tmdb_rating": details.get("tmdb_rating"),
         "tmdb_vote_count": details.get("tmdb_vote_count"),
+        "genres": details.get("genres", []),
         "status": details.get("status"),
     }
     for field, value in optional_metadata.items():

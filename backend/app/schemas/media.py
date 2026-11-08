@@ -49,6 +49,7 @@ class MediaResponse(BaseModel):
     tmdb_vote_count: int | None
     imdb_rating: float | None
     rotten_tomatoes_rating: int | None
+    genres: list[str] = Field(default_factory=list)
     status: str | None
 
     model_config = ConfigDict(from_attributes=True)
@@ -60,6 +61,9 @@ class LibraryEntryResponse(BaseModel):
     added_at: datetime
     watched: bool = False
     watched_at: datetime | None = None
+    personal_rating: float | None = None
+    personal_review: str | None = None
+    personal_notes: str | None = None
 
 
 class LibraryFeedbackUpdate(BaseModel):
@@ -69,9 +73,7 @@ class LibraryFeedbackUpdate(BaseModel):
 
 
 class LibraryTitleDetailResponse(LibraryEntryResponse):
-    personal_rating: float | None = None
-    personal_review: str | None = None
-    personal_notes: str | None = None
+    pass
 
 
 class WatchStatusUpdateRequest(BaseModel):
