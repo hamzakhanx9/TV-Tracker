@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { CalendarView } from "@/components/calendar-view";
 
 const sections: Record<string, { title: string; description: string }> = {
   discover: {
@@ -43,6 +44,7 @@ export default async function SectionPage({
   const { section } = await params;
   const content = sections[section];
   if (!content) notFound();
+  if (section === "calendar") return <CalendarView />;
 
   return (
     <section className="panel flex min-h-[420px] flex-col items-center justify-center px-6 text-center">

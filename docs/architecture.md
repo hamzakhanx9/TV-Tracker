@@ -16,6 +16,8 @@ The frontend talks to the backend over HTTP. The API owns validation, business
 logic, and persistence. PostgreSQL is the source of truth for user-owned data.
 The worker is a separate process so scheduled work can evolve independently of
 API request handling without introducing a microservice architecture.
+It runs idempotent notification generation against persisted movie and episode
+release data every 15 minutes.
 
 ## Boundaries and future integrations
 
@@ -23,6 +25,11 @@ External providers will be accessed only through backend integration clients.
 Provider IDs and normalized internal records will be separate, so metadata
 providers can be changed without coupling the UI or domain model to one API.
 Synchronization must preserve user-owned state and last-known valid metadata.
+Search and import currently use TMDB; TVmaze is queried during TV imports and
+only linked when title and premiere year match. TMDB vote averages are included
+in search and library data. The optional OMDb client uses the TMDB-provided IMDb
+ID to retrieve IMDb and Rotten Tomatoes scores when configured. TV details link
+to the corresponding SeriesGraph show page in a new browser tab.
 
 The initial app is suitable for local development and does not implement
 authentication. User records and user-scoped domain tables provide a foundation

@@ -2,6 +2,7 @@
 
 import {
   Activity,
+  Bell,
   CalendarDays,
   Clapperboard,
   Film,
@@ -16,7 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
@@ -30,6 +31,8 @@ const primaryNavigation = [
 
 const personalNavigation = [
   { label: "Watchlist", href: "/watchlist", icon: Clapperboard },
+  { label: "Catch up", href: "/catch-up", icon: Activity },
+  { label: "Notifications", href: "/notifications", icon: Bell },
   { label: "For you", href: "/recommendations", icon: Sparkles },
   { label: "Your stats", href: "/statistics", icon: Activity },
 ];
@@ -37,6 +40,37 @@ const personalNavigation = [
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [hasNotifications, setHasNotifications] = useState(false);
+  const [notificationError, setNotificationError] = useState("");
+
+  const refreshNotificationStatus = useCallback(async () => {
+    try {
+      const response = await fetch("/api/v1/notifications?limit=1", { cache: "no-store" });
+      if (!response.ok) throw new Error("Could not check notification status.");
+      const notifications = (await response.json()) as unknown[];
+      setHasNotifications(notifications.length > 0);
+      setNotificationError("");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not check notification status.";
+      setNotificationError(message);
+      console.error(message, error);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshNotificationStatus();
+    const intervalId = window.setInterval(() => void refreshNotificationStatus(), 60_000);
+    const onFocus = () => void refreshNotificationStatus();
+    const onNotificationsUpdated = () => void refreshNotificationStatus();
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("frame-notifications-updated", onNotificationsUpdated);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("frame-notifications-updated", onNotificationsUpdated);
+    };
+  }, [refreshNotificationStatus]);
 
   return (
     <div className="min-h-screen">
@@ -85,6 +119,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {...item}
                 active={pathname === item.href}
                 onNavigate={() => setMobileOpen(false)}
+                statusDot={item.href === "/notifications" && hasNotifications}
+                statusError={item.href === "/notifications" ? notificationError : ""}
               />
             ))}
           </nav>
@@ -155,16 +191,21 @@ function NavItem({
   icon: Icon,
   active,
   onNavigate,
+  statusDot = false,
+  statusError = "",
 }: {
   label: string;
   href: string;
   icon: LucideIcon;
   active: boolean;
   onNavigate: () => void;
+  statusDot?: boolean;
+  statusError?: string;
 }) {
   return (
     <Link
       aria-current={active ? "page" : undefined}
+      aria-label={statusError ? `${label}: ${statusError}` : undefined}
       className={cn(
         "flex h-10 items-center gap-3 rounded-lg px-3 text-[13px] transition-colors",
         active
@@ -175,7 +216,15 @@ function NavItem({
       onClick={onNavigate}
     >
       <Icon size={16} strokeWidth={1.7} />
-      {label}
+      <span className="flex-1">{label}</span>
+      {statusDot && (
+        <span
+          aria-label="New notifications"
+          className="size-2 rounded-full bg-red-500 shadow-[0_0_8px_rgb(239_68_68/45%)]"
+          role="status"
+          title="New notifications"
+        />
+      )}
     </Link>
   );
 }

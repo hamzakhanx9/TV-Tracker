@@ -1,6 +1,6 @@
 # FRAME implementation plan
 
-## Current milestone: Stage 1 — Foundation
+## Stage 1 — Foundation
 
 - [x] Establish the frontend, backend, database, and worker monorepo structure.
 - [x] Add a responsive dark-mode application shell and navigation.
@@ -10,37 +10,48 @@
 - [x] Document the architecture, database baseline, API baseline, and local setup.
 - [ ] Run container builds and tests in an environment with Docker, Node.js, and Python installed.
 
-## Stage 2 — External integrations
+## Current milestone: Stage 2 — External integrations and first library workflows
 
-- [ ] Add isolated TMDB and TVmaze clients with timeouts, retry/backoff, rate-limit
+- [x] Add isolated TMDB and TVmaze clients with timeouts, retry/backoff, rate-limit
       handling, caching, and safe metadata synchronization.
-- [ ] Normalize provider metadata and persist external IDs, media, seasons, and episodes.
-- [ ] Add media search and import endpoints and UI.
-- [ ] Add integration tests using mocked provider responses.
+- [x] Normalize movie/TV metadata and persist media and provider IDs.
+- [x] Add media search and import endpoints and UI.
+- [x] Add movie/TV library list, status update, and removal workflows.
+- [x] Add a mixed movie/TV watchlist for titles marked "Plan to watch".
+- [x] Open TV episode tracking in a dedicated, scrollable show dialog.
+- [x] Add TMDB aggregate ratings, optional OMDb ratings, and SeriesGraph details panels.
+- [x] Add provider and API tests using mocked responses.
+- [x] Persist TVmaze episode metadata and synchronize it without overwriting watch history.
+- [ ] Run tests and the Docker stack in an environment with dependencies installed.
 
 ## Stage 3 — Library
 
-- [ ] Add user library, status management, ratings, reviews, and notes.
-- [ ] Implement movie and TV library views and media detail pages.
-- [ ] Test imports, uniqueness constraints, and user-owned data.
+- [x] Add the initial user library and watch-status management.
+- [x] Implement movie and TV library views.
+- [x] Show TMDB, IMDb, and Rotten Tomatoes aggregate ratings when available.
+- [x] Add expandable title details and SeriesGraph links for TV shows.
+- [x] Add personal ratings, reviews, notes, and detailed media pages.
+- [ ] Test uniqueness constraints and user-owned data on PostgreSQL.
 
 ## Stage 4 — Episode tracking
 
-- [ ] Add episode-level watch events and transactional season actions.
-- [ ] Add progress calculations, rewatches, and spoiler-protected episode details.
+- [x] Add movie/episode watch events, idempotent watched toggles, and transactional season actions.
+- [x] Calculate progress from watch events and reveal episode descriptions on demand.
+- [x] Add explicit, idempotent rewatch history.
 - [ ] Test duplicate prevention and episode/season progress.
 
 ## Stage 5 — Calendar
 
-- [ ] Synchronize release dates and expose timezone-aware date-range endpoints.
-- [ ] Add the calendar and release-detail UI.
-- [ ] Test date-only, unknown, and timezone-sensitive release handling.
+- [x] Expose stored release dates and timezone-aware date-range endpoints.
+- [x] Add the calendar and release-detail UI.
+- [ ] Run date-only, unknown, and timezone-sensitive release tests.
 
 ## Stage 6 — Catch-up and notifications
 
-- [ ] Add catch-up calculations and idempotent scheduled jobs.
-- [ ] Generate deduplicated in-app notifications from persisted synchronized data.
-- [ ] Add notification preferences and browser push support.
+- [ ] Validate catch-up calculations and idempotent scheduled jobs.
+- [ ] Validate deduplicated in-app notifications and clear actions.
+- [ ] Validate notification preference workflows.
+- [x] Browser push notifications are out of scope.
 
 ## Stage 7 — Recommendations and statistics
 

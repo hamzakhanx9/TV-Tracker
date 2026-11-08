@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://frame:frame-local-development@localhost:5432/frame"
     backend_cors_origins: str = "http://localhost:3000"
     log_level: str = "INFO"
+    tmdb_read_access_token: str | None = None
+    omdb_api_key: str | None = None
+    default_user_email: str = "local@frame.local"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

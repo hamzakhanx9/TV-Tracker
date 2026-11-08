@@ -22,6 +22,9 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://frame:frame-local-development@db:5432/frame}
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost:3000}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      TMDB_READ_ACCESS_TOKEN: ${TMDB_READ_ACCESS_TOKEN:-}
+      OMDB_API_KEY: ${OMDB_API_KEY:-}
+      DEFAULT_USER_EMAIL: ${DEFAULT_USER_EMAIL:-local@frame.local}
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     ports:
       - "8000:8000"
