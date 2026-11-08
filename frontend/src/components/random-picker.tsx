@@ -111,7 +111,7 @@ export function RandomPicker() {
       <header className="max-w-2xl">
         <p className="eyebrow">YOUR NEXT FAVORITE, BY CHANCE</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-          The watch picker
+          The Watch Picker
         </h1>
         <p className="mt-3 text-sm leading-6 text-zinc-400">
           Set the mood, then let titles in your watchlist make the decision for tonight.

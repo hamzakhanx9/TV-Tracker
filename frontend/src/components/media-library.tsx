@@ -425,7 +425,7 @@ export function MediaLibrary({
   );
   const selectedTvItem = items.find((item) => item.media.id === tvDialogId) ?? null;
   const collectionTitle =
-    title ?? (mediaType === "ALL" ? "Watchlist" : isMovie ? "Movies" : "TV shows");
+    title ?? (mediaType === "ALL" ? "Watchlist" : isMovie ? "Movies" : "TV Shows");
 
   return (
     <div className="space-y-7">

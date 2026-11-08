@@ -103,7 +103,7 @@ export function InsightsPanel() {
     <section className="space-y-7">
       <header>
         <p className="eyebrow">YOUR PERSONAL COLLECTION OF REVIEWS</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">Your insights</h1>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">Your Insights</h1>
         <p className="mt-2 text-sm leading-6 text-zinc-400">
           The stories you’ve rated, and the thoughts you’ve saved about them.
         </p>

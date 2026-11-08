@@ -119,7 +119,7 @@ export function StatisticsPanel() {
     <section className="space-y-7">
       <header>
         <p className="eyebrow">YOUR LIBRARY AT A GLANCE</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">Your stats</h1>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">Your Stats</h1>
         <p className="mt-2 text-sm leading-6 text-zinc-400">
           A snapshot of the movies and shows you’re tracking.
         </p>

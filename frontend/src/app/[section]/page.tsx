@@ -14,11 +14,11 @@ const sections: Record<string, { title: string; description: string }> = {
     description: "Your film collection, watch history, and personal ratings will live here.",
   },
   tv: {
-    title: "TV shows",
+    title: "TV Shows",
     description: "Follow your series and keep every season and episode in sync.",
   },
   calendar: {
-    title: "Release calendar",
+    title: "Release Calendar",
     description: "Keep track of upcoming episodes, premieres, and movie releases.",
   },
   watchlist: {
@@ -26,7 +26,7 @@ const sections: Record<string, { title: string; description: string }> = {
     description: "Save the titles you want to get to next.",
   },
   insights: {
-    title: "Your insights",
+    title: "Your Insights",
     description: "Personalized discoveries and patterns from your viewing history.",
   },
 };

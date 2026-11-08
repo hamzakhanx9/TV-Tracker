@@ -142,7 +142,7 @@ export function CalendarView() {
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="eyebrow">YOUR LIBRARY, ON THE HORIZON</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">Release calendar</h1>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">Release Calendar</h1>
           <p className="mt-2 text-sm text-zinc-400">
             Upcoming and past movie releases and episodes for titles in your library.
           </p>

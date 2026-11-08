@@ -28,17 +28,17 @@ const primaryNavigation = [
   { label: "Home", href: "/", icon: LayoutDashboard },
   { label: "Discover", href: "/discover", icon: Search },
   { label: "Movies", href: "/movies", icon: Film },
-  { label: "TV shows", href: "/tv", icon: Tv2 },
+  { label: "TV Shows", href: "/tv", icon: Tv2 },
   { label: "Calendar", href: "/calendar", icon: CalendarDays },
 ];
 
 const personalNavigation = [
   { label: "Watchlist", href: "/watchlist", icon: Clapperboard },
   { label: "Random", href: "/random", icon: Dices },
-  { label: "Catch up", href: "/catch-up", icon: Activity },
+  { label: "Catch Up", href: "/catch-up", icon: Activity },
   { label: "Notifications", href: "/notifications", icon: Bell },
-  { label: "Your stats", href: "/statistics", icon: BarChart3 },
-  { label: "Your insights", href: "/insights", icon: Lightbulb },
+  { label: "Your Stats", href: "/statistics", icon: BarChart3 },
+  { label: "Your Insights", href: "/insights", icon: Lightbulb },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {

@@ -53,7 +53,7 @@ export function CatchUpList() {
     <section className="space-y-5">
       <header>
         <p className="eyebrow">YOUR CURRENTLY WATCHING LIST</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">Catch up</h1>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">Catch Up</h1>
         <p className="mt-2 text-sm text-zinc-400">
           Aired episodes in shows you are watching that are not marked watched.
         </p>

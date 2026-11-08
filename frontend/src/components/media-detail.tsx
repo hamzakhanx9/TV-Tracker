@@ -204,7 +204,7 @@ export function MediaDetail({ mediaId }: { mediaId: string }) {
       <form className="panel space-y-5 p-5 sm:p-7" onSubmit={saveFeedback}>
         <div>
           <p className="eyebrow">YOUR TAKE</p>
-          <h2 className="mt-2 text-xl font-semibold text-white">Personal rating & review</h2>
+          <h2 className="mt-2 text-xl font-semibold text-white">Personal Rating & Review</h2>
         </div>
         <label className="block max-w-xs text-sm text-zinc-300">
           Your rating (1–10)
