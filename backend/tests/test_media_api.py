@@ -169,6 +169,83 @@ def test_search_import_duplicate_status_and_removal(api_client) -> None:
         assert db.scalar(select(func.count()).select_from(Media)) == 1
 
 
+def test_completing_and_reopening_show_updates_all_episode_watch_events(api_client) -> None:
+    client, test_session, _ = api_client
+    imported = client.post(
+        "/api/v1/media/import",
+        json={"provider": "tmdb", "external_id": 404, "media_type": "TV"},
+    )
+    assert imported.status_code == 201
+    media_id = UUID(imported.json()["media"]["id"])
+
+    with test_session() as db:
+        user = db.scalar(select(User))
+        assert user is not None
+        season = Season(media_id=media_id, season_number=1, name="Season 1")
+        db.add(season)
+        db.flush()
+        db.add_all(
+            [
+                Episode(
+                    season_id=season.id,
+                    tvmaze_id=740,
+                    episode_number=1,
+                    title="Previously watched",
+                ),
+                Episode(
+                    season_id=season.id,
+                    tvmaze_id=741,
+                    episode_number=2,
+                    title="Not watched yet",
+                ),
+            ]
+        )
+        db.flush()
+        previously_watched = db.scalar(
+            select(Episode).where(Episode.tvmaze_id == 740)
+        )
+        assert previously_watched is not None
+        db.add(
+            WatchEvent(
+                user_id=user.id,
+                episode_id=previously_watched.id,
+                event_type="WATCHED",
+                is_current=True,
+            )
+        )
+        db.commit()
+
+    completed = client.patch(
+        f"/api/v1/library/{media_id}",
+        json={"watch_status": "COMPLETED"},
+    )
+    assert completed.status_code == 200
+    assert completed.json()["watch_status"] == "COMPLETED"
+    tracking = client.get(f"/api/v1/library/{media_id}/episodes")
+    assert tracking.status_code == 200
+    assert tracking.json()["watched_count"] == 2
+    assert all(
+        episode["watched"]
+        for season in tracking.json()["seasons"]
+        for episode in season["episodes"]
+    )
+
+    reopened = client.patch(
+        f"/api/v1/library/{media_id}",
+        json={"watch_status": "ON_HOLD"},
+    )
+    assert reopened.status_code == 200
+    assert reopened.json()["watch_status"] == "ON_HOLD"
+    tracking = client.get(f"/api/v1/library/{media_id}/episodes")
+    assert tracking.status_code == 200
+    assert tracking.json()["watched_count"] == 0
+    assert all(
+        not episode["watched"]
+        for season in tracking.json()["seasons"]
+        for episode in season["episodes"]
+    )
+
+
 def test_calendar_includes_movie_releases_and_localized_episode_airings(api_client) -> None:
     client, test_session, _ = api_client
     movie_import = client.post(

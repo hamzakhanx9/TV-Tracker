@@ -19,10 +19,12 @@ export function RatingBadge({
   source,
   score,
   suffix = "/10",
+  showSource = true,
 }: {
   source: string;
   score: number | null;
   suffix?: string;
+  showSource?: boolean;
 }) {
   if (score === null) return null;
   return (
@@ -30,7 +32,7 @@ export function RatingBadge({
       <Star className="fill-amber-300 text-amber-300" size={12} />
       <span className="font-medium text-zinc-100">{score}</span>
       <span className="text-zinc-500">{suffix}</span>
-      <span className="text-zinc-500">{source}</span>
+      {showSource && <span className="text-zinc-500">{source}</span>}
     </span>
   );
 }

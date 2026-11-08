@@ -90,7 +90,7 @@ export function MediaLibrary({
   showStatusFilter = true,
 }: {
   mediaType: MediaKind | "ALL";
-  initialFilter?: WatchStatus | "ALL";
+  initialFilter?: WatchStatus | WatchStatus[] | "ALL";
   title?: string;
   showStatusFilter?: boolean;
 }) {
@@ -98,7 +98,9 @@ export function MediaLibrary({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updating, setUpdating] = useState<string | null>(null);
-  const [filter, setFilter] = useState<WatchStatus | "ALL">(initialFilter);
+  const [filter, setFilter] = useState<WatchStatus | "ALL">(
+    Array.isArray(initialFilter) ? "ALL" : initialFilter,
+  );
   const [genreFilter, setGenreFilter] = useState("ALL");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [tvDialogId, setTvDialogId] = useState<string | null>(null);
@@ -416,7 +418,9 @@ export function MediaLibrary({
   );
   const visibleItems = items.filter(
     (item) =>
-      (filter === "ALL" || item.watch_status === filter) &&
+      (Array.isArray(initialFilter)
+        ? initialFilter.includes(item.watch_status)
+        : filter === "ALL" || item.watch_status === filter) &&
       (genreFilter === "ALL" || item.media.genres.includes(genreFilter)),
   );
   const selectedTvItem = items.find((item) => item.media.id === tvDialogId) ?? null;
@@ -432,8 +436,8 @@ export function MediaLibrary({
             {collectionTitle}
           </h1>
           <p className="mt-2 text-sm text-zinc-400">
-            {visibleItems.length} {title ? "titles" : isMovie ? "films" : "shows"}{" "}
-            {title ? "to watch" : "in your library"}
+            {visibleItems.length} {title ? "titles in your watchlist" : isMovie ? "films" : "shows"}{" "}
+            {!title && "in your library"}
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -504,16 +508,16 @@ export function MediaLibrary({
                 ? "Your watchlist is empty"
                 : `Your ${isMovie ? "movie" : "TV"} library is ready`
               : title
-                ? "Nothing waiting in your watchlist"
+                ? "No titles in your watchlist"
                 : "Nothing in this status yet"}
           </h2>
           <p className="mt-2 max-w-sm text-xs leading-5 text-zinc-500">
             {items.length === 0
               ? title
-                ? "Add a movie or show to your library and set its status to Plan to watch."
+                ? "Add a title to your library and set its status to Plan to watch, On hold, or Dropped."
                 : "Discover a title and add it to your library to get started."
               : title
-                ? "Titles with a different status are not in your watchlist. Set a title to Plan to watch to add it here."
+              ? "Titles marked Plan to watch, On hold, or Dropped appear here."
               : "Choose another status to see more of your collection."}
           </p>
           {items.length === 0 && (
@@ -577,18 +581,23 @@ export function MediaLibrary({
                     </div>
                   )}
                 </button>
-                <div className="flex items-center justify-between gap-2 p-2.5">
+                <div className="flex items-center gap-2 p-2.5">
                   <RatingBadge
                     score={item.media.tmdb_rating}
                     source="TMDB"
+                    showSource={false}
                   />
                   {item.media.tmdb_rating === null && (
-                    <span className="text-[10px] text-zinc-600">No rating</span>
+                    <span className="flex-1 text-[10px] text-zinc-600">No rating</span>
                   )}
-                  <label className="min-w-0 flex-1">
-                    <span className="sr-only">Status for {item.media.title}</span>
+                  <label
+                    className="relative ml-auto grid size-9 shrink-0 place-items-center rounded-md border border-white/[0.07] bg-[#111114] text-zinc-400 transition-colors hover:border-white/[0.13] hover:text-zinc-200 focus-within:border-violet-400/40"
+                    title={`Status: ${statuses.find((status) => status.value === item.watch_status)?.label ?? item.watch_status}`}
+                  >
+                    <ChevronDown aria-hidden="true" size={16} />
                     <select
-                      className="h-9 w-full rounded-md border border-white/[0.07] bg-[#111114] px-2 text-[10px] text-zinc-300 outline-none focus:border-violet-400/40"
+                      aria-label={`Status for ${item.media.title}`}
+                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                       disabled={updating === item.media.id}
                       onChange={(event) =>
                         void changeStatus(item, event.target.value as WatchStatus)

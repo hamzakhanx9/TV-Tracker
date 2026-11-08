@@ -6,6 +6,7 @@ import {
   BarChart3,
   CalendarDays,
   Clapperboard,
+  Dices,
   Film,
   LayoutDashboard,
   Menu,
@@ -33,6 +34,7 @@ const primaryNavigation = [
 
 const personalNavigation = [
   { label: "Watchlist", href: "/watchlist", icon: Clapperboard },
+  { label: "Random", href: "/random", icon: Dices },
   { label: "Catch up", href: "/catch-up", icon: Activity },
   { label: "Notifications", href: "/notifications", icon: Bell },
   { label: "Your stats", href: "/statistics", icon: BarChart3 },

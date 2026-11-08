@@ -675,6 +675,12 @@ def update_library_status(
     db: Session = Depends(get_db),
 ) -> LibraryEntryResponse:
     entry = _get_library_entry(db, media_id)
+    previous_status = entry.watch_status
+    if entry.media.media_type == "TV":
+        if update.watch_status == "COMPLETED":
+            _set_show_episodes_watched(db, entry.user_id, media_id, watched=True)
+        elif previous_status == "COMPLETED":
+            _set_show_episodes_watched(db, entry.user_id, media_id, watched=False)
     entry.watch_status = update.watch_status
     if update.watch_status == "WATCHING" and entry.started_at is None:
         entry.started_at = datetime.now(UTC)
@@ -684,9 +690,88 @@ def update_library_status(
         entry.completed_at = datetime.now(UTC)
     if update.watch_status != "COMPLETED":
         entry.completed_at = None
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        logger.exception("Library status update violated a database constraint")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Library status and episode progress could not be updated due to a conflict.",
+        ) from exc
     db.refresh(entry)
     return _library_entry_response(db, entry)
+
+
+def _set_show_episodes_watched(
+    db: Session, user_id: UUID, media_id: UUID, watched: bool
+) -> None:
+    episodes = db.scalars(
+        select(Episode).join(Season).where(Season.media_id == media_id)
+    ).all()
+    if not episodes:
+        return
+
+    episode_ids = [episode.id for episode in episodes]
+    current_events = db.scalars(
+        select(WatchEvent).where(
+            WatchEvent.user_id == user_id,
+            WatchEvent.episode_id.in_(episode_ids),
+            WatchEvent.is_current.is_(True),
+        )
+    ).all()
+    events_by_episode = {event.episode_id: event for event in current_events}
+    if watched:
+        episodes_to_mark = [
+            episode
+            for episode in episodes
+            if (event := events_by_episode.get(episode.id)) is None
+            or event.event_type == "UNWATCHED"
+        ]
+        events_to_clear = [
+            events_by_episode[episode.id]
+            for episode in episodes_to_mark
+            if episode.id in events_by_episode
+        ]
+        for event in events_to_clear:
+            event.is_current = False
+        if episodes_to_mark:
+            db.flush()
+            now = datetime.now(UTC)
+            db.add_all(
+                [
+                    WatchEvent(
+                        user_id=user_id,
+                        episode_id=episode.id,
+                        watched_at=now,
+                        event_type="WATCHED",
+                        is_current=True,
+                    )
+                    for episode in episodes_to_mark
+                ]
+            )
+        return
+
+    events_to_unwatch = [
+        event for event in current_events if event.event_type != "UNWATCHED"
+    ]
+    for event in events_to_unwatch:
+        event.is_current = False
+    if events_to_unwatch:
+        db.flush()
+        now = datetime.now(UTC)
+        db.add_all(
+            [
+                WatchEvent(
+                    user_id=user_id,
+                    episode_id=event.episode_id,
+                    watched_at=now,
+                    event_type="UNWATCHED",
+                    is_current=True,
+                )
+                for event in events_to_unwatch
+            ]
+        )
 
 
 @router.delete("/library/{media_id}", status_code=status.HTTP_204_NO_CONTENT)
