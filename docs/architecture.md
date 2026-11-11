@@ -25,9 +25,10 @@ External providers will be accessed only through backend integration clients.
 Provider IDs and normalized internal records will be separate, so metadata
 providers can be changed without coupling the UI or domain model to one API.
 Synchronization must preserve user-owned state and last-known valid metadata.
-Search and import currently use TMDB; TVmaze is queried during TV imports and
-only linked when title and premiere year match. TMDB vote averages are included
-in search and library data. The optional OMDb client uses the TMDB-provided IMDb
+Search and import use TMDB; TVmaze is queried during TV imports and linked when
+title and premiere year match. TVmaze episode data is preferred, with TMDB
+episode data used when TVmaze has no match or episode list. TMDB vote averages
+are included in search and library data. The optional OMDb client uses the TMDB-provided IMDb
 ID to retrieve IMDb and Rotten Tomatoes scores when configured. TV details link
 to the corresponding SeriesGraph show page in a new browser tab.
 

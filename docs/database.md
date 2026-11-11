@@ -21,12 +21,13 @@ TV. `media_external_ids` stores provider IDs with a unique provider/ID constrain
 status, personal timestamps/notes, a personal rating, and a review. A local
 development user is created on the first import using `DEFAULT_USER_EMAIL`.
 
-`seasons` and `episodes` store TVmaze episode metadata. `watch_events` stores
-the viewing history for a movie or an individual episode and enforces exactly
-one target per event. A partial unique index allows only one current event for
-each user's movie or episode. Rewatch request keys are unique per user, making
-retries idempotent. Episode progress is derived from the current watch event;
-synchronization does not remove existing history.
+`seasons` and `episodes` store synchronized TVmaze or TMDB episode metadata;
+episodes retain their provider IDs separately from internal UUIDs.
+`watch_events` stores the viewing history for a movie or an individual episode
+and enforces exactly one target per event. A partial unique index allows only
+one current event for each user's movie or episode. Rewatch request keys are
+unique per user, making retries idempotent. Episode progress is derived from
+the current watch event; synchronization does not remove existing history.
 
 `notification_preferences` stores the episode-alert toggle and an IANA
 timezone. `notifications` stores in-app episode announcements/releases with a

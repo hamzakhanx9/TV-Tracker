@@ -4,7 +4,7 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload
 
@@ -22,6 +22,7 @@ from app.integrations.tvmaze import TvmazeClient
 from app.models import Episode, Media, MediaExternalId, Season, User, UserLibrary, WatchEvent
 from app.schemas.media import (
     EpisodeTrackingResponse,
+    EpisodeWatchStatusUpdateRequest,
     ExternalRatingsResponse,
     ImportResponse,
     LibraryEntryResponse,
@@ -210,20 +211,51 @@ def list_library(
     if media_type:
         query = query.join(UserLibrary.media).where(Media.media_type == media_type)
     entries = db.scalars(query.order_by(UserLibrary.added_at.desc())).unique().all()
-    watched_events = db.scalars(
-        select(WatchEvent).where(
-            WatchEvent.user_id == user.id,
-            WatchEvent.media_id.in_([entry.media_id for entry in entries]),
-            WatchEvent.is_current.is_(True),
-            WatchEvent.event_type.in_(("WATCHED", "REWATCHED")),
+    media_ids = [entry.media_id for entry in entries]
+    watched_events = (
+        db.scalars(
+            select(WatchEvent).where(
+                WatchEvent.user_id == user.id,
+                WatchEvent.media_id.in_(media_ids),
+                WatchEvent.is_current.is_(True),
+                WatchEvent.event_type.in_(("WATCHED", "REWATCHED")),
+            )
         )
-    ).all() if entries else []
+        .all()
+        if entries
+        else []
+    )
     watched_by_media = {event.media_id: event for event in watched_events}
+    episode_last_watched = (
+        db.execute(
+            select(Season.media_id, func.max(WatchEvent.watched_at))
+            .join(Episode, Episode.season_id == Season.id)
+            .join(WatchEvent, WatchEvent.episode_id == Episode.id)
+            .where(
+                Season.media_id.in_(media_ids),
+                WatchEvent.user_id == user.id,
+                WatchEvent.is_current.is_(True),
+                WatchEvent.event_type.in_(("WATCHED", "REWATCHED")),
+            )
+            .group_by(Season.media_id)
+        ).all()
+        if entries
+        else []
+    )
+    last_watched_by_media = {media_id: watched_at for media_id, watched_at in episode_last_watched}
+    last_watched_by_media.update(
+        {
+            media_id: event.watched_at
+            for media_id, event in watched_by_media.items()
+            if event.watched_at is not None
+        }
+    )
     return [
         LibraryEntryResponse(
             media=entry.media,
             watch_status=entry.watch_status,
             added_at=entry.added_at,
+            last_watched_at=last_watched_by_media.get(entry.media_id),
             watched=entry.media_id in watched_by_media,
             watched_at=(
                 watched_by_media[entry.media_id].watched_at
@@ -397,6 +429,7 @@ def get_episode_tracking(
 def sync_episode_tracking(
     media_id: UUID,
     db: Session = Depends(get_db),
+    tmdb: TmdbClient = Depends(get_tmdb_client),
     tvmaze: TvmazeClient = Depends(get_tvmaze_client),
 ) -> MediaTrackingResponse:
     entry = _get_library_entry(db, media_id)
@@ -411,16 +444,32 @@ def sync_episode_tracking(
             MediaExternalId.provider == "tvmaze",
         )
     )
-    if tvmaze_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="No TVmaze match is linked to this show, so its episodes cannot be synced.",
+    tmdb_id = db.scalar(
+        select(MediaExternalId.external_id).where(
+            MediaExternalId.media_id == media_id,
+            MediaExternalId.provider == "tmdb",
         )
-    try:
-        provider_episodes = tvmaze.get_episodes(int(tvmaze_id))
-    except ProviderError as exc:
-        logger.warning("TVmaze episode sync failed: %s", exc)
-        raise _provider_http_error(exc) from exc
+    )
+    episode_provider = "tvmaze" if tvmaze_id is not None else "tmdb"
+    provider_episodes: list[dict] = []
+    if tvmaze_id is not None:
+        try:
+            provider_episodes = tvmaze.get_episodes(int(tvmaze_id))
+        except ProviderError as exc:
+            logger.warning("TVmaze episode sync failed; falling back to TMDB: %s", exc)
+        if not provider_episodes:
+            episode_provider = "tmdb"
+    if episode_provider == "tmdb":
+        if tmdb_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="No supported episode metadata source is linked to this show.",
+            )
+        try:
+            provider_episodes = tmdb.get_episodes(int(tmdb_id))
+        except ProviderError as exc:
+            logger.warning("TMDB episode sync failed: %s", exc)
+            raise _provider_http_error(exc) from exc
 
     try:
         for data in provider_episodes:
@@ -437,22 +486,38 @@ def sync_episode_tracking(
                     name=(
                         "Specials"
                         if data["season_number"] == 0
-                        else f"Season {data['season_number']}"
+                        else data.get("season_name") or f"Season {data['season_number']}"
                     ),
+                    overview=data.get("season_overview"),
+                    poster_path=data.get("season_poster_path"),
+                    air_date=data.get("season_air_date"),
                 )
                 db.add(season)
                 db.flush()
-            episode = db.scalar(
-                select(Episode).where(Episode.tvmaze_id == data["tvmaze_id"])
-            )
+            elif data.get("season_name"):
+                season.name = data["season_name"]
+                season.overview = data.get("season_overview") or season.overview
+                season.poster_path = data.get("season_poster_path") or season.poster_path
+                season.air_date = data.get("season_air_date") or season.air_date
+            provider_id = data[f"{episode_provider}_id"]
+            provider_column = Episode.tvmaze_id if episode_provider == "tvmaze" else Episode.tmdb_id
+            episode = db.scalar(select(Episode).where(provider_column == provider_id))
+            if episode is None and data["episode_number"] is not None:
+                episode = db.scalar(
+                    select(Episode).where(
+                        Episode.season_id == season.id,
+                        Episode.episode_number == data["episode_number"],
+                    )
+                )
             if episode is not None and episode.season.media_id != media_id:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail="A TVmaze episode is already linked to a different show.",
+                    detail="A provider episode is already linked to a different show.",
                 )
             if episode is None:
-                episode = Episode(season_id=season.id, tvmaze_id=data["tvmaze_id"])
+                episode = Episode(season_id=season.id)
                 db.add(episode)
+            setattr(episode, f"{episode_provider}_id", provider_id)
             for field in (
                 "episode_number",
                 "title",
@@ -483,7 +548,7 @@ def sync_episode_tracking(
 )
 def set_episode_watched(
     episode_id: UUID,
-    update: WatchStatusUpdateRequest,
+    update: EpisodeWatchStatusUpdateRequest,
     db: Session = Depends(get_db),
 ) -> WatchActionResponse:
     user = _get_or_create_local_user(db)
@@ -498,7 +563,9 @@ def set_episode_watched(
     )
     if episode is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Episode not found")
-    return _set_episode_watched(db, user.id, episode, update.watched)
+    return _set_episode_watched(
+        db, user.id, episode, update.watched, include_previous=update.include_previous
+    )
 
 
 @router.post(
@@ -547,7 +614,22 @@ def set_season_watched(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Season not found")
     now = datetime.now(UTC)
     if update.watched:
-        episodes = [episode for episode in season.episodes if _episode_has_aired(episode, now)]
+        previous_seasons = db.scalars(
+            select(Season)
+            .where(
+                Season.media_id == season.media_id,
+                Season.season_number < season.season_number,
+            )
+            .options(selectinload(Season.episodes))
+        ).all()
+        episodes = [
+            episode
+            for previous_season in previous_seasons
+            for episode in previous_season.episodes
+        ]
+        episodes.extend(
+            episode for episode in season.episodes if _episode_has_aired(episode, now)
+        )
     else:
         episodes = season.episodes
     episode_ids = [episode.id for episode in episodes]
@@ -805,10 +887,28 @@ def _library_entry_response(db: Session, entry: UserLibrary) -> LibraryEntryResp
         )
     )
     watched = event is not None and event.event_type != "UNWATCHED"
+    last_watched_at = (
+        db.scalar(
+            select(func.max(WatchEvent.watched_at))
+            .join(Episode, Episode.id == WatchEvent.episode_id)
+            .join(Season, Season.id == Episode.season_id)
+            .where(
+                Season.media_id == entry.media_id,
+                WatchEvent.user_id == entry.user_id,
+                WatchEvent.is_current.is_(True),
+                WatchEvent.event_type.in_(("WATCHED", "REWATCHED")),
+            )
+        )
+        if entry.media.media_type == "TV"
+        else event.watched_at
+        if watched and event
+        else None
+    )
     return LibraryEntryResponse(
         media=entry.media,
         watch_status=entry.watch_status,
         added_at=entry.added_at,
+        last_watched_at=last_watched_at,
         watched=watched,
         watched_at=event.watched_at if watched and event else None,
         personal_rating=entry.personal_rating,
@@ -886,47 +986,83 @@ def _media_tracking_response(db: Session, entry: UserLibrary) -> MediaTrackingRe
         seasons=season_responses,
         watched_count=len(events_by_episode),
         episode_count=len(episode_ids),
-        tvmaze_available=any(
-            external.provider == "tvmaze" for external in entry.media.external_ids
+        last_watched_at=max(
+            (event.watched_at for event in events_by_episode.values()),
+            default=None,
+        ),
+        episode_tracking_available=any(
+            external.provider in {"tvmaze", "tmdb"} for external in entry.media.external_ids
         ),
     )
 
 
 def _set_episode_watched(
-    db: Session, user_id: UUID, episode: Episode, watched: bool
+    db: Session,
+    user_id: UUID,
+    episode: Episode,
+    watched: bool,
+    *,
+    include_previous: bool = False,
 ) -> WatchActionResponse:
-    event = db.scalar(
-        select(WatchEvent).where(
-            WatchEvent.user_id == user_id,
-            WatchEvent.episode_id == episode.id,
-            WatchEvent.is_current.is_(True),
-        )
-    )
-    if watched and (event is None or event.event_type == "UNWATCHED"):
-        if event is not None:
-            event.is_current = False
-            db.flush()
-        event = WatchEvent(
-            user_id=user_id,
-            episode_id=episode.id,
-            watched_at=datetime.now(UTC),
-            event_type="WATCHED",
-            is_current=True,
-        )
-        db.add(event)
-    elif not watched and event is not None and event.event_type != "UNWATCHED":
-        event.is_current = False
-        db.flush()
-        db.add(
-            WatchEvent(
-                user_id=user_id,
-                episode_id=episode.id,
-                watched_at=datetime.now(UTC),
-                event_type="UNWATCHED",
-                is_current=True,
+    episodes = [episode]
+    if watched and include_previous:
+        show_episodes = db.scalars(
+            select(Episode)
+            .join(Season)
+            .where(Season.media_id == episode.season.media_id)
+            .options(joinedload(Episode.season))
+        ).all()
+        show_episodes.sort(
+            key=lambda item: (
+                item.season.season_number,
+                item.episode_number is None,
+                item.episode_number or 0,
+                item.title.casefold(),
             )
         )
-        event = None
+        target_index = next(
+            index for index, item in enumerate(show_episodes) if item.id == episode.id
+        )
+        episodes = show_episodes[: target_index + 1]
+
+    events = db.scalars(
+        select(WatchEvent).where(
+            WatchEvent.user_id == user_id,
+            WatchEvent.episode_id.in_([item.id for item in episodes]),
+            WatchEvent.is_current.is_(True),
+        )
+    ).all()
+    events_by_episode = {event.episode_id: event for event in events}
+    now = datetime.now(UTC)
+    events_to_add: list[WatchEvent] = []
+    for item in episodes:
+        event = events_by_episode.get(item.id)
+        if watched and (event is None or event.event_type == "UNWATCHED"):
+            if event is not None:
+                event.is_current = False
+            events_to_add.append(
+                WatchEvent(
+                    user_id=user_id,
+                    episode_id=item.id,
+                    watched_at=now,
+                    event_type="WATCHED",
+                    is_current=True,
+                )
+            )
+        elif not watched and event is not None and event.event_type != "UNWATCHED":
+            event.is_current = False
+            events_to_add.append(
+                WatchEvent(
+                    user_id=user_id,
+                    episode_id=item.id,
+                    watched_at=now,
+                    event_type="UNWATCHED",
+                    is_current=True,
+                )
+            )
+    if events_to_add:
+        db.flush()
+        db.add_all(events_to_add)
     try:
         db.commit()
     except IntegrityError:
@@ -951,6 +1087,13 @@ def _set_episode_watched(
             status_code=status.HTTP_409_CONFLICT,
             detail="Episode watch progress changed concurrently; refresh and try again.",
         )
+    event = db.scalar(
+        select(WatchEvent).where(
+            WatchEvent.user_id == user_id,
+            WatchEvent.episode_id == episode.id,
+            WatchEvent.is_current.is_(True),
+        )
+    )
     library_entry = _get_library_entry(db, episode.season.media_id)
     return WatchActionResponse(
         watched=watched,

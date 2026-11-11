@@ -12,8 +12,8 @@ from app.api.dependencies import get_omdb_client, get_tmdb_client, get_tvmaze_cl
 from app.db.base import Base
 from app.db.session import get_db
 from app.integrations.errors import ProviderError
-from app.main import app
 from app.jobs import generate_notifications
+from app.main import app
 from app.models import (
     Episode,
     Media,
@@ -29,6 +29,7 @@ from app.models import (
 class FakeTmdbClient:
     def __init__(self) -> None:
         self.details_calls = 0
+        self.episodes: list[dict] = []
 
     def search(self, query: str, media_type: str | None = None) -> list[dict]:
         return [
@@ -74,6 +75,10 @@ class FakeTmdbClient:
 
     def get_imdb_id(self, media_type: str, external_id: int) -> None:
         return None
+
+    def get_episodes(self, show_id: int) -> list[dict]:
+        assert show_id == 202
+        return self.episodes
 
 
 class FakeTvmazeClient:
@@ -182,7 +187,9 @@ def test_completing_and_reopening_show_updates_all_episode_watch_events(api_clie
         user = db.scalar(select(User))
         assert user is not None
         season = Season(media_id=media_id, season_number=1, name="Season 1")
+        future_season = Season(media_id=media_id, season_number=2, name="Season 2")
         db.add(season)
+        db.add(future_season)
         db.flush()
         db.add_all(
             [
@@ -197,6 +204,13 @@ def test_completing_and_reopening_show_updates_all_episode_watch_events(api_clie
                     tvmaze_id=741,
                     episode_number=2,
                     title="Not watched yet",
+                ),
+                Episode(
+                    season_id=future_season.id,
+                    tvmaze_id=742,
+                    episode_number=1,
+                    title="Future episode",
+                    air_date=date(2100, 1, 1),
                 ),
             ]
         )
@@ -223,7 +237,7 @@ def test_completing_and_reopening_show_updates_all_episode_watch_events(api_clie
     assert completed.json()["watch_status"] == "COMPLETED"
     tracking = client.get(f"/api/v1/library/{media_id}/episodes")
     assert tracking.status_code == 200
-    assert tracking.json()["watched_count"] == 2
+    assert tracking.json()["watched_count"] == 3
     assert all(
         episode["watched"]
         for season in tracking.json()["seasons"]
@@ -244,6 +258,99 @@ def test_completing_and_reopening_show_updates_all_episode_watch_events(api_clie
         for season in tracking.json()["seasons"]
         for episode in season["episodes"]
     )
+
+
+def test_episode_can_mark_unwatched_previous_episodes_across_seasons(api_client) -> None:
+    client, test_session, _ = api_client
+    imported = client.post(
+        "/api/v1/media/import",
+        json={"provider": "tmdb", "external_id": 406, "media_type": "TV"},
+    )
+    media_id = UUID(imported.json()["media"]["id"])
+
+    with test_session() as db:
+        first_season = Season(media_id=media_id, season_number=1, name="Season 1")
+        second_season = Season(media_id=media_id, season_number=2, name="Season 2")
+        db.add_all([first_season, second_season])
+        db.flush()
+        previous_episode = Episode(
+            season_id=first_season.id,
+            tvmaze_id=743,
+            episode_number=1,
+            title="Earlier episode",
+        )
+        current_episode = Episode(
+            season_id=second_season.id,
+            tvmaze_id=744,
+            episode_number=1,
+            title="Current episode",
+        )
+        db.add_all([previous_episode, current_episode])
+        db.commit()
+        current_episode_id = current_episode.id
+
+    response = client.put(
+        f"/api/v1/episodes/{current_episode_id}/watched",
+        json={"watched": True, "include_previous": True},
+    )
+
+    assert response.status_code == 200
+    tracking = client.get(f"/api/v1/library/{media_id}/episodes")
+    assert tracking.status_code == 200
+    assert tracking.json()["watched_count"] == 2
+    assert all(
+        episode["watched"]
+        for season in tracking.json()["seasons"]
+        for episode in season["episodes"]
+    )
+
+
+def test_library_last_watched_uses_latest_episode_watch_time(api_client) -> None:
+    client, test_session, _ = api_client
+    imported = client.post(
+        "/api/v1/media/import",
+        json={"provider": "tmdb", "external_id": 407, "media_type": "TV"},
+    )
+    media_id = UUID(imported.json()["media"]["id"])
+    earlier = datetime(2024, 1, 1, tzinfo=UTC)
+    latest = datetime(2024, 1, 5, tzinfo=UTC)
+
+    with test_session() as db:
+        user = db.scalar(select(User))
+        assert user is not None
+        season = Season(media_id=media_id, season_number=1, name="Season 1")
+        db.add(season)
+        db.flush()
+        episodes = [
+            Episode(season_id=season.id, tvmaze_id=745, title="Earlier"),
+            Episode(season_id=season.id, tvmaze_id=746, title="Latest"),
+        ]
+        db.add_all(episodes)
+        db.flush()
+        db.add_all(
+            [
+                WatchEvent(
+                    user_id=user.id,
+                    episode_id=episodes[0].id,
+                    watched_at=earlier,
+                    event_type="WATCHED",
+                    is_current=True,
+                ),
+                WatchEvent(
+                    user_id=user.id,
+                    episode_id=episodes[1].id,
+                    watched_at=latest,
+                    event_type="REWATCHED",
+                    is_current=True,
+                ),
+            ]
+        )
+        db.commit()
+
+    library = client.get("/api/v1/library")
+    assert library.status_code == 200
+    entry = next(item for item in library.json() if item["media"]["id"] == str(media_id))
+    assert entry["last_watched_at"].startswith(latest.strftime("%Y-%m-%dT%H:%M:%S"))
 
 
 def test_calendar_includes_movie_releases_and_localized_episode_airings(api_client) -> None:
@@ -613,6 +720,39 @@ def test_tv_import_persists_matched_tvmaze_identifier(api_client) -> None:
         assert external_id.external_id == "777"
 
 
+def test_episode_sync_falls_back_to_tmdb_when_tvmaze_has_no_match(api_client) -> None:
+    client, _, tmdb = api_client
+    tmdb.episodes = [
+        {
+            "tmdb_id": 9001,
+            "season_number": 1,
+            "season_name": "Season 1",
+            "season_overview": "First season",
+            "season_poster_path": None,
+            "season_air_date": date(2020, 5, 4),
+            "episode_number": 1,
+            "title": "First Episode",
+            "overview": "Episode description",
+            "air_at": None,
+            "air_date": date(2020, 5, 4),
+            "runtime": 24,
+            "still_path": None,
+        }
+    ]
+    imported = client.post(
+        "/api/v1/media/import",
+        json={"provider": "tmdb", "external_id": 202, "media_type": "TV"},
+    )
+    media_id = imported.json()["media"]["id"]
+
+    response = client.post(f"/api/v1/library/{media_id}/episodes/sync")
+
+    assert response.status_code == 200
+    assert response.json()["episode_tracking_available"] is True
+    assert response.json()["episode_count"] == 1
+    assert response.json()["seasons"][0]["episodes"][0]["title"] == "First Episode"
+
+
 def test_ratings_endpoint_returns_tmdb_rating_without_omdb(api_client) -> None:
     client, _, _ = api_client
 
@@ -876,3 +1016,58 @@ def test_episode_sync_preserves_history_and_season_actions_skip_future_episodes(
     assert client.get(f"/api/v1/library/{media_id}/episodes").json()["watched_count"] == 1
     with test_session() as db:
         assert db.scalar(select(func.count()).select_from(WatchEvent)) == 4
+
+
+def test_marking_later_season_watched_also_marks_previous_seasons(api_client) -> None:
+    client, test_session, _ = api_client
+    imported = client.post(
+        "/api/v1/media/import",
+        json={"provider": "tmdb", "external_id": 408, "media_type": "TV"},
+    )
+    media_id = UUID(imported.json()["media"]["id"])
+
+    with test_session() as db:
+        first_season = Season(media_id=media_id, season_number=1, name="Season 1")
+        second_season = Season(media_id=media_id, season_number=2, name="Season 2")
+        db.add_all([first_season, second_season])
+        db.flush()
+        db.add_all(
+            [
+                Episode(
+                    season_id=first_season.id,
+                    tvmaze_id=747,
+                    episode_number=1,
+                    title="Earlier episode with no air date",
+                ),
+                Episode(
+                    season_id=second_season.id,
+                    tvmaze_id=748,
+                    episode_number=1,
+                    title="Aired episode",
+                    air_date=date(2020, 1, 1),
+                ),
+                Episode(
+                    season_id=second_season.id,
+                    tvmaze_id=749,
+                    episode_number=2,
+                    title="Future episode",
+                    air_date=date(2100, 1, 1),
+                ),
+            ]
+        )
+        db.commit()
+        second_season_id = second_season.id
+
+    response = client.put(
+        f"/api/v1/seasons/{second_season_id}/watched",
+        json={"watched": True},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["watched_count"] == 2
+    assert response.json()["episode_count"] == 3
+    watched_by_season = {
+        season["season_number"]: [episode["watched"] for episode in season["episodes"]]
+        for season in response.json()["seasons"]
+    }
+    assert watched_by_season == {1: [True], 2: [True, False]}

@@ -59,6 +59,7 @@ class LibraryEntryResponse(BaseModel):
     media: MediaResponse
     watch_status: Literal["PLAN_TO_WATCH", "WATCHING", "COMPLETED", "ON_HOLD", "DROPPED"]
     added_at: datetime
+    last_watched_at: datetime | None = None
     watched: bool = False
     watched_at: datetime | None = None
     personal_rating: float | None = None
@@ -78,6 +79,11 @@ class LibraryTitleDetailResponse(LibraryEntryResponse):
 
 class WatchStatusUpdateRequest(BaseModel):
     watched: bool
+
+
+class EpisodeWatchStatusUpdateRequest(BaseModel):
+    watched: bool
+    include_previous: bool = False
 
 
 class RewatchRequest(BaseModel):
@@ -118,7 +124,8 @@ class MediaTrackingResponse(BaseModel):
     seasons: list[SeasonTrackingResponse]
     watched_count: int
     episode_count: int
-    tvmaze_available: bool
+    last_watched_at: datetime | None = None
+    episode_tracking_available: bool
 
 
 class ImportResponse(LibraryEntryResponse):

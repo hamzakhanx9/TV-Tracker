@@ -10,15 +10,16 @@ stages; the current milestone is **Stage 2: Search and library workflows**.
 - PostgreSQL 16 with a persistent Docker volume.
 - SQLAlchemy 2.x, Alembic, and migrations for users, normalized media, provider
   IDs, and a personal library.
-- TMDB search/import and TVmaze title matching for imported TV shows.
+- TMDB search/import, TVmaze show matching, and TMDB episode metadata fallback.
 - TMDB ratings, optional OMDb IMDb/Rotten Tomatoes scores, and expandable title
   details with a SeriesGraph panel for TV shows.
 - Movie and TV libraries with watch-status updates and removal.
+- Episode-level watch tracking with synchronized episode metadata.
 - Separate APScheduler worker process.
 - Docker Compose health checks and dependency ordering.
 
-Episode tracking, personal ratings/reviews, calendar, notifications,
-recommendations, and statistics are planned but are not implemented yet.
+Personal ratings/reviews, calendar, notifications, recommendations, and
+statistics are planned but are not implemented yet.
 
 ## Run locally with Docker
 

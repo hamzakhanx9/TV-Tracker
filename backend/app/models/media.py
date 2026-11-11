@@ -145,12 +145,14 @@ class Season(Base):
 
 class Episode(Base):
     __tablename__ = "episodes"
+    __table_args__ = (UniqueConstraint("tmdb_id", name="uq_episodes_tmdb_id"),)
 
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
     season_id: Mapped[UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("seasons.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    tvmaze_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
+    tvmaze_id: Mapped[int | None] = mapped_column(Integer, unique=True)
+    tmdb_id: Mapped[int | None] = mapped_column(Integer)
     episode_number: Mapped[int | None] = mapped_column(Integer)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     overview: Mapped[str | None] = mapped_column(Text)

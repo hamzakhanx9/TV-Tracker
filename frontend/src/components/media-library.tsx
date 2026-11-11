@@ -21,6 +21,7 @@ import { MediaRatings, RatingBadge, type Ratings } from "@/components/media-rati
 
 type MediaKind = "MOVIE" | "TV";
 type WatchStatus = "PLAN_TO_WATCH" | "WATCHING" | "COMPLETED" | "ON_HOLD" | "DROPPED";
+type SortBy = "alphabetical" | "last-watched" | "rating";
 
 type LibraryItem = {
   media: {
@@ -40,6 +41,7 @@ type LibraryItem = {
   };
   watch_status: WatchStatus;
   added_at: string;
+  last_watched_at: string | null;
   watched: boolean;
   watched_at: string | null;
 };
@@ -72,7 +74,8 @@ type MediaTracking = {
   seasons: TrackingSeason[];
   watched_count: number;
   episode_count: number;
-  tvmaze_available: boolean;
+  last_watched_at: string | null;
+  episode_tracking_available: boolean;
 };
 
 const statuses: { value: WatchStatus; label: string }[] = [
@@ -105,6 +108,13 @@ export function MediaLibrary({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [tvDialogId, setTvDialogId] = useState<string | null>(null);
   const tvDialogRef = useRef<HTMLDialogElement>(null);
+  const [pendingPrevious, setPendingPrevious] = useState<{
+    item: LibraryItem;
+    episodeId: string;
+    previousCount: number;
+  } | null>(null);
+  const previousEpisodesDialogRef = useRef<HTMLDialogElement>(null);
+  const [sortBy, setSortBy] = useState<SortBy>("alphabetical");
   const [ratingsById, setRatingsById] = useState<Record<string, Ratings>>({});
   const [ratingsLoading, setRatingsLoading] = useState<string | null>(null);
   const [ratingsError, setRatingsError] = useState<string | null>(null);
@@ -151,6 +161,12 @@ export function MediaLibrary({
     else if (!tvDialogId && dialog?.open) dialog.close();
   }, [tvDialogId]);
 
+  useEffect(() => {
+    const dialog = previousEpisodesDialogRef.current;
+    if (pendingPrevious && dialog && !dialog.open) dialog.showModal();
+    else if (!pendingPrevious && dialog?.open) dialog.close();
+  }, [pendingPrevious]);
+
   async function changeStatus(item: LibraryItem, watchStatus: WatchStatus) {
     setUpdating(item.media.id);
     setError("");
@@ -160,10 +176,24 @@ export function MediaLibrary({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ watch_status: watchStatus }),
       });
-      if (!response.ok) throw new Error("Could not update status. Please try again.");
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(
+          typeof body?.detail === "string"
+            ? body.detail
+            : "Could not update status. Please try again.",
+        );
+      }
       setItems((current) =>
         current.map((entry) =>
-          entry.media.id === item.media.id ? { ...entry, watch_status: watchStatus } : entry,
+          entry.media.id === item.media.id
+            ? {
+                ...entry,
+                watch_status: watchStatus,
+                last_watched_at:
+                  typeof body?.last_watched_at === "string" ? body.last_watched_at : null,
+              }
+            : entry,
         ),
       );
     } catch (updateError) {
@@ -205,7 +235,7 @@ export function MediaLibrary({
         );
       }
       let tracking = body as MediaTracking;
-      if (!forceSync && tracking.tvmaze_available && tracking.episode_count === 0) {
+      if (!forceSync && tracking.episode_tracking_available && tracking.episode_count === 0) {
         response = await fetch(`/api/v1/library/${id}/episodes/sync`, { method: "POST" });
         body = await response.json().catch(() => null);
         if (!response.ok) {
@@ -216,6 +246,13 @@ export function MediaLibrary({
         tracking = body as MediaTracking;
       }
       setTrackingById((current) => ({ ...current, [id]: tracking }));
+      setItems((current) =>
+        current.map((entry) =>
+          entry.media.id === id
+            ? { ...entry, last_watched_at: tracking.last_watched_at }
+            : entry,
+        ),
+      );
     } catch (loadError) {
       setTrackingError(
         loadError instanceof Error ? loadError.message : "Could not load episode tracking.",
@@ -248,6 +285,7 @@ export function MediaLibrary({
                 ...entry,
                 watched: body.watched,
                 watched_at: body.watched_at,
+                last_watched_at: body.watched_at,
                 watch_status: body.watch_status,
               }
             : entry,
@@ -290,7 +328,12 @@ export function MediaLibrary({
         setItems((current) =>
           current.map((entry) =>
             entry.media.id === id
-              ? { ...entry, watched: body.watched, watched_at: body.watched_at }
+              ? {
+                  ...entry,
+                  watched: body.watched,
+                  watched_at: body.watched_at,
+                  last_watched_at: body.watched_at,
+                }
               : entry,
           ),
         );
@@ -309,6 +352,7 @@ export function MediaLibrary({
     item: LibraryItem,
     episodeId: string,
     watched: boolean,
+    includePrevious = false,
   ) {
     setTrackingUpdating(episodeId);
     setTrackingError(null);
@@ -316,7 +360,7 @@ export function MediaLibrary({
       const response = await fetch(`/api/v1/episodes/${episodeId}/watched`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ watched }),
+        body: JSON.stringify({ watched, include_previous: includePrevious }),
       });
       const body = await response.json().catch(() => null);
       if (!response.ok) {
@@ -336,6 +380,29 @@ export function MediaLibrary({
     }
   }
 
+  function toggleEpisodeWatched(item: LibraryItem, episodeId: string, watched: boolean) {
+    if (watched) {
+      const tracking = trackingById[item.media.id];
+      let previousCount = 0;
+      let foundEpisode = false;
+      for (const season of tracking?.seasons ?? []) {
+        for (const episode of season.episodes) {
+          if (episode.id === episodeId) {
+            foundEpisode = true;
+            break;
+          }
+          if (!episode.watched) previousCount += 1;
+        }
+        if (foundEpisode) break;
+      }
+      if (foundEpisode && previousCount > 0) {
+        setPendingPrevious({ item, episodeId, previousCount });
+        return;
+      }
+    }
+    void setEpisodeWatched(item, episodeId, watched);
+  }
+
   async function setSeasonWatched(item: LibraryItem, season: TrackingSeason, watched: boolean) {
     setTrackingUpdating(season.id);
     setTrackingError(null);
@@ -352,6 +419,13 @@ export function MediaLibrary({
         );
       }
       setTrackingById((current) => ({ ...current, [item.media.id]: body as MediaTracking }));
+      setItems((current) =>
+        current.map((entry) =>
+          entry.media.id === item.media.id
+            ? { ...entry, last_watched_at: body.last_watched_at }
+            : entry,
+        ),
+      );
     } catch (updateError) {
       setTrackingError(
         updateError instanceof Error
@@ -416,13 +490,32 @@ export function MediaLibrary({
   const genres = [...new Set(items.flatMap((item) => item.media.genres))].sort((a, b) =>
     a.localeCompare(b),
   );
-  const visibleItems = items.filter(
-    (item) =>
-      (Array.isArray(initialFilter)
-        ? initialFilter.includes(item.watch_status)
-        : filter === "ALL" || item.watch_status === filter) &&
-      (genreFilter === "ALL" || item.media.genres.includes(genreFilter)),
-  );
+  const visibleItems = items
+    .filter(
+      (item) =>
+        (Array.isArray(initialFilter)
+          ? initialFilter.includes(item.watch_status)
+          : filter === "ALL" || item.watch_status === filter) &&
+        (genreFilter === "ALL" || item.media.genres.includes(genreFilter)),
+    )
+    .sort((a, b) => {
+      if (sortBy === "last-watched") {
+        const timeA = a.last_watched_at ? Date.parse(a.last_watched_at) : Number.NEGATIVE_INFINITY;
+        const timeB = b.last_watched_at ? Date.parse(b.last_watched_at) : Number.NEGATIVE_INFINITY;
+        return timeB - timeA || a.media.title.localeCompare(b.media.title);
+      }
+      if (sortBy === "rating") {
+        return (
+          (b.media.tmdb_rating ?? Number.NEGATIVE_INFINITY) -
+            (a.media.tmdb_rating ?? Number.NEGATIVE_INFINITY) ||
+          a.media.title.localeCompare(b.media.title)
+        );
+      }
+      return a.media.title.localeCompare(b.media.title, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+    });
   const selectedTvItem = items.find((item) => item.media.id === tvDialogId) ?? null;
   const collectionTitle =
     title ?? (mediaType === "ALL" ? "Watchlist" : isMovie ? "Movies" : "TV Shows");
@@ -471,6 +564,18 @@ export function MediaLibrary({
                   {genre}
                 </option>
               ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-3 text-xs text-zinc-500">
+            Sort by
+            <select
+              className="h-10 rounded-lg border border-white/[0.07] bg-[#111114] px-3 text-xs text-zinc-300 outline-none focus:border-violet-400/40"
+              onChange={(event) => setSortBy(event.target.value as SortBy)}
+              value={sortBy}
+            >
+              <option value="alphabetical">Alphabetical</option>
+              <option value="last-watched">Last watched</option>
+              <option value="rating">TMDB rating: highest first</option>
             </select>
           </label>
         </div>
@@ -753,7 +858,7 @@ export function MediaLibrary({
                       className="grid size-9 shrink-0 place-items-center rounded-lg border border-white/[0.08] text-zinc-400 hover:bg-white/[0.06] hover:text-white disabled:opacity-50"
                       disabled={
                         trackingLoading === selectedTvItem.media.id ||
-                        !trackingById[selectedTvItem.media.id]?.tvmaze_available
+                        !trackingById[selectedTvItem.media.id]?.episode_tracking_available
                       }
                       onClick={() => void loadTracking(selectedTvItem, true)}
                       title="Sync episode list"
@@ -882,7 +987,7 @@ export function MediaLibrary({
                                         } disabled:opacity-50`}
                                         disabled={trackingUpdating === episode.id}
                                         onClick={() =>
-                                          void setEpisodeWatched(
+                                          toggleEpisodeWatched(
                                             selectedTvItem,
                                             episode.id,
                                             !episode.watched,
@@ -957,13 +1062,63 @@ export function MediaLibrary({
                     </div>
                   ) : trackingById[selectedTvItem.media.id] ? (
                     <p className="mt-4 text-xs leading-5 text-zinc-500">
-                      {trackingById[selectedTvItem.media.id].tvmaze_available
+                      {trackingById[selectedTvItem.media.id].episode_tracking_available
                         ? "No episodes are available yet. Use sync to try again."
-                        : "Episode tracking needs a TVmaze match for this show."}
+                        : "Episode tracking is not available for this show."}
                     </p>
                   ) : null}
                 </section>
               </div>
+            </div>
+          </div>
+        )}
+      </dialog>
+      <dialog
+        aria-labelledby="previous-episodes-title"
+        className="fixed left-1/2 top-1/2 m-0 w-[min(100%-2rem,30rem)] -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-white/[0.09] bg-[#111114] p-0 text-zinc-100 shadow-2xl backdrop:bg-black/70"
+        onCancel={() => setPendingPrevious(null)}
+        onClose={() => setPendingPrevious(null)}
+        ref={previousEpisodesDialogRef}
+      >
+        {pendingPrevious && (
+          <div className="p-5 sm:p-6">
+            <h2 className="text-lg font-semibold" id="previous-episodes-title">
+              Mark previous episodes too?
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">
+              There {pendingPrevious.previousCount === 1 ? "is" : "are"}{" "}
+              {pendingPrevious.previousCount} earlier unwatched{" "}
+              {pendingPrevious.previousCount === 1 ? "episode" : "episodes"} in{" "}
+              {pendingPrevious.item.media.title}.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <button
+                className="rounded-lg border border-white/[0.08] px-3 py-2 text-xs text-zinc-300 hover:bg-white/[0.05]"
+                onClick={() => {
+                  const pending = pendingPrevious;
+                  setPendingPrevious(null);
+                  void setEpisodeWatched(pending.item, pending.episodeId, true);
+                }}
+                type="button"
+              >
+                Only this episode
+              </button>
+              <button
+                className="rounded-lg bg-violet-400 px-3 py-2 text-xs font-medium text-zinc-950 hover:bg-violet-300"
+                onClick={() => {
+                  const pending = pendingPrevious;
+                  setPendingPrevious(null);
+                  void setEpisodeWatched(
+                    pending.item,
+                    pending.episodeId,
+                    true,
+                    true,
+                  );
+                }}
+                type="button"
+              >
+                This and previous
+              </button>
             </div>
           </div>
         )}

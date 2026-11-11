@@ -63,6 +63,69 @@ class TmdbClient:
         imdb_id = payload.get("imdb_id")
         return imdb_id if isinstance(imdb_id, str) and imdb_id.startswith("tt") else None
 
+    def get_episodes(self, show_id: int) -> list[dict[str, Any]]:
+        if not self._token:
+            raise ProviderError(
+                "TMDB", "TMDB_READ_ACCESS_TOKEN is not configured", unavailable=True
+            )
+        show = self._get(f"/tv/{show_id}")
+        seasons = show.get("seasons")
+        if not isinstance(seasons, list):
+            raise ProviderError("TMDB", "TMDB returned an invalid season response")
+
+        episodes: list[dict[str, Any]] = []
+        for season in seasons:
+            if not isinstance(season, dict):
+                raise ProviderError("TMDB", "TMDB returned an invalid season")
+            season_number = season.get("season_number")
+            season_name = season.get("name")
+            if (
+                isinstance(season_number, bool)
+                or not isinstance(season_number, int)
+                or not isinstance(season_name, str)
+            ):
+                raise ProviderError("TMDB", "TMDB returned an invalid season")
+            season_payload = self._get(f"/tv/{show_id}/season/{season_number}")
+            items = season_payload.get("episodes")
+            if not isinstance(items, list):
+                raise ProviderError("TMDB", "TMDB returned an invalid episode response")
+            for item in items:
+                if not isinstance(item, dict):
+                    raise ProviderError("TMDB", "TMDB returned an invalid episode")
+                episode_id = item.get("id")
+                name = item.get("name")
+                if (
+                    isinstance(episode_id, bool)
+                    or not isinstance(episode_id, int)
+                    or not isinstance(name, str)
+                    or not name.strip()
+                ):
+                    raise ProviderError("TMDB", "TMDB returned an invalid episode")
+                still = item.get("still_path")
+                poster = season.get("poster_path")
+                episodes.append(
+                    {
+                        "tmdb_id": episode_id,
+                        "season_number": season_number,
+                        "season_name": season_name,
+                        "season_overview": season.get("overview"),
+                        "season_poster_path": image_url(poster, "w342")
+                        if isinstance(poster, str)
+                        else None,
+                        "season_air_date": parse_release_date(season.get("air_date")),
+                        "episode_number": _non_negative_integer(item.get("episode_number")),
+                        "title": name,
+                        "overview": item.get("overview")
+                        if isinstance(item.get("overview"), str)
+                        else None,
+                        "air_at": None,
+                        "air_date": parse_release_date(item.get("air_date")),
+                        "runtime": _non_negative_integer(item.get("runtime")),
+                        "still_path": image_url(still, "w300") if isinstance(still, str) else None,
+                    }
+                )
+        return episodes
+
     def _get(
         self, path: str, *, params: dict[str, str | int] | None = None
     ) -> dict[str, Any]:

@@ -69,6 +69,65 @@ def test_tmdb_search_uses_bearer_auth_and_merges_categories() -> None:
     assert all(request.url.params["query"] == "test" for request in requests)
 
 
+def test_tmdb_loads_and_normalizes_season_episodes() -> None:
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/3/tv/42":
+            return httpx.Response(
+                200,
+                json={
+                    "seasons": [
+                        {
+                            "season_number": 1,
+                            "name": "Season 1",
+                            "overview": "Season summary",
+                            "air_date": "2021-01-02",
+                            "poster_path": "/season.jpg",
+                        }
+                    ]
+                },
+            )
+        assert request.url.path == "/3/tv/42/season/1"
+        return httpx.Response(
+            200,
+            json={
+                "episodes": [
+                    {
+                        "id": 4201,
+                        "episode_number": 1,
+                        "name": "Episode 1",
+                        "overview": "Episode summary",
+                        "air_date": "2021-01-03",
+                        "runtime": 24,
+                        "still_path": "/episode.jpg",
+                    }
+                ]
+            },
+        )
+
+    episodes = TmdbClient(
+        token="test-token",
+        transport=httpx.MockTransport(handle),
+    ).get_episodes(42)
+
+    assert episodes == [
+        {
+            "tmdb_id": 4201,
+            "season_number": 1,
+            "season_name": "Season 1",
+            "season_overview": "Season summary",
+            "season_poster_path": "https://image.tmdb.org/t/p/w342/season.jpg",
+            "season_air_date": date(2021, 1, 2),
+            "episode_number": 1,
+            "title": "Episode 1",
+            "overview": "Episode summary",
+            "air_at": None,
+            "air_date": date(2021, 1, 3),
+            "runtime": 24,
+            "still_path": "https://image.tmdb.org/t/p/w300/episode.jpg",
+        }
+    ]
+
+
 def test_tvmaze_only_returns_exact_title_and_year_matches() -> None:
     def handle(request: httpx.Request) -> httpx.Response:
         return httpx.Response(

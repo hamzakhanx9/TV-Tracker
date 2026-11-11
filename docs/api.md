@@ -20,7 +20,7 @@ endpoints are intentionally outside that prefix:
 | `PUT` | `/api/v1/library/{media_id}/watched` | Mark a movie watched or unwatched. |
 | `POST` | `/api/v1/library/{media_id}/rewatch` | Record a movie rewatch with an idempotency key. |
 | `GET` | `/api/v1/library/{media_id}/episodes` | Read TV episode and watch progress. |
-| `POST` | `/api/v1/library/{media_id}/episodes/sync` | Sync a TV episode list from its TVmaze match. |
+| `POST` | `/api/v1/library/{media_id}/episodes/sync` | Sync a TV episode list from TVmaze or TMDB. |
 | `GET` | `/api/v1/calendar?start=...&end=...&timezone=...` | List library movie releases and episode airings in an inclusive date range and IANA timezone. |
 | `GET` | `/api/v1/catch-up?timezone=...` | List aired, unwatched episodes by show for titles marked "Watching". |
 | `GET` | `/api/v1/notifications?limit=...` | List in-app episode announcements and release notifications. |
@@ -55,15 +55,24 @@ missing matches do not prevent import. TMDB vote averages are always returned.
 When `OMDB_API_KEY` is configured, the backend looks up IMDb and Rotten
 Tomatoes scores by TMDB's IMDb identifier. That key is optional and backend-only.
 
-Episode lists are synchronized from TVmaze only for shows with a saved
-TVmaze match. Repeated syncs update provider metadata without deleting existing
-watch events. Movie and episode watched updates are idempotent; rewatch calls
+Episode lists are synchronized from TVmaze when it has data, with TMDB as a
+fallback for shows TVmaze does not match or does not list episodes for. Repeated
+syncs update provider metadata without deleting existing watch events. Movie
+and episode watched updates are idempotent; rewatch calls
 require a client-generated UUID `idempotency_key`. Watch and unwatch actions
 append events, preserving viewing history. Bulk season watch actions include
 only episodes with a known air date/time that has passed when marking watched;
 mark-unwatched applies to watched episodes in that season. Individual episodes
 with unknown or future dates can still be marked manually. Episode progress is
 computed from each title's current watch event.
+
+Library entries include `last_watched_at`, using the latest currently watched
+episode for shows and the current movie watch event for films. Marking a show
+`COMPLETED` marks all its synchronized episodes watched. Episode watch requests
+may include `include_previous: true` to mark unwatched episodes up to and
+including the selected episode, ordered across seasons.
+Marking a season watched also marks all episodes from earlier seasons; future
+episodes in the selected season remain unwatched.
 
 The calendar uses movie release dates and stored TV episode air dates/timestamps
 for titles in the local library. `start` and `end` are inclusive ISO dates;

@@ -8,13 +8,6 @@ type CatchUpShow = {
   media_id: string;
   title: string;
   unwatched_count: number;
-  episodes: {
-    id: string;
-    title: string;
-    season_number: number;
-    episode_number: number | null;
-    air_date: string;
-  }[];
 };
 
 export function CatchUpList() {
@@ -91,29 +84,10 @@ export function CatchUpList() {
                   {show.title}
                 </Link>
                 <span className="text-xs text-zinc-500">
-                  {show.unwatched_count} unwatched{" "}
-                  {show.unwatched_count === 1 ? "episode" : "episodes"}
+                  {show.unwatched_count}{" "}
+                  {show.unwatched_count === 1 ? "episode" : "episodes"} to catch up on
                 </span>
               </div>
-              <ul className="mt-4 divide-y divide-white/[0.05]">
-                {show.episodes.map((episode) => (
-                  <li
-                    className="flex flex-wrap justify-between gap-2 py-2 text-sm"
-                    key={episode.id}
-                  >
-                    <span className="text-zinc-300">
-                      S{String(episode.season_number).padStart(2, "0")}E
-                      {episode.episode_number === null
-                        ? "??"
-                        : String(episode.episode_number).padStart(2, "0")}{" "}
-                      · {episode.title}
-                    </span>
-                    <time className="text-xs text-zinc-500" dateTime={episode.air_date}>
-                      Aired {episode.air_date}
-                    </time>
-                  </li>
-                ))}
-              </ul>
             </article>
           ))}
         </div>
